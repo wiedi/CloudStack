@@ -7818,7 +7818,7 @@
                   path += "/" + args.data.vCenterDataStore;
                   url = vmfsURL("dummy", path);
                 }
-                else if (args.data.protocol == "sheepdog") {
+                else if (args.data.protocol == "Sheepdog") {
                   url = sheepdogURL(server);
                 }
                 else {
