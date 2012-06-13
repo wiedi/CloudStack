@@ -1296,6 +1296,11 @@ public class StorageManagerImpl implements StorageManager, Manager, ClusterManag
             pool = new StoragePoolVO(StoragePoolType.SharedMountPoint, storageHost, 0, hostPath);
         } else if (scheme.equalsIgnoreCase("PreSetup")) {
             pool = new StoragePoolVO(StoragePoolType.PreSetup, storageHost, 0, hostPath);
+        } else if (scheme.equalsIgnoreCase("Sheepdog")) {
+            if (port == -1) {
+                port = 7000;
+            }
+            pool = new StoragePoolVO(StoragePoolType.Sheepdog, storageHost, port, hostPath);
         } else if (scheme.equalsIgnoreCase("iscsi")) {
             String[] tokens = hostPath.split("/");
             int lun = NumbersUtil.parseInt(tokens[tokens.length - 1], -1);
