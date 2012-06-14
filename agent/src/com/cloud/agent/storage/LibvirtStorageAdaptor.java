@@ -105,6 +105,12 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 			uuid = UUID.nameUUIDFromBytes(new String(sourcePath).getBytes())
 					.toString();
 			protocal = "DIR";
+		} else if (uri.getScheme().equalsIgnoreCase("sheepdog")) {
+			sourcePath = uri.getPath().replace("//", "/");
+			sourceHost = uri.getHost();
+			uuid = UUID.nameUUIDFromBytes(
+					new String(sourceHost + sourcePath).getBytes()).toString();
+			protocal = "SHEEPDOG";
 		} else {
 			sourcePath = uri.getPath();
 			sourcePath = sourcePath.replace("//", "/");
@@ -130,7 +136,9 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 							sourceHost, sourcePath, targetPath);
 					s_logger.debug(spd.toString());
 					// addStoragePool(uuid);
-
+				} else if (protocal.equalsIgnoreCase("SHEEPDOG")) {
+					spd = new LibvirtStoragePoolDef(poolType.SHEEPDOG, uuid, uuid,
+							sourceHost, sourcePath, null);
 				} else if (protocal.equalsIgnoreCase("DIR")) {
 					_storageLayer.mkdir(targetPath);
 					spd = new LibvirtStoragePoolDef(poolType.DIR, uuid, uuid,
