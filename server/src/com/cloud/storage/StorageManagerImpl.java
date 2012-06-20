@@ -1597,7 +1597,7 @@ public class StorageManagerImpl implements StorageManager, Manager, ClusterManag
         s_logger.debug("creating pool " + pool.getName() + " on  host " + hostId);
         if (pool.getPoolType() != StoragePoolType.NetworkFilesystem && pool.getPoolType() != StoragePoolType.Filesystem && pool.getPoolType() != StoragePoolType.IscsiLUN
                 && pool.getPoolType() != StoragePoolType.Iscsi && pool.getPoolType() != StoragePoolType.VMFS && pool.getPoolType() != StoragePoolType.SharedMountPoint
-                && pool.getPoolType() != StoragePoolType.PreSetup && pool.getPoolType() != StoragePoolType.OCFS2) {
+                && pool.getPoolType() != StoragePoolType.PreSetup && pool.getPoolType() != StoragePoolType.OCFS2 && pool.getPoolType() != StoragePoolType.Sheepdog) {
             s_logger.warn(" Doesn't support storage pool type " + pool.getPoolType());
             return false;
         }
