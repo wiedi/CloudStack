@@ -213,6 +213,33 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 		}
 	}
 
+	private StoragePool createSheepdogStoragePool(Connect conn, String uuid,
+			String host) {
+
+		LibvirtStoragePoolDef spd = new LibvirtStoragePoolDef(poolType.Sheepdog,
+				uuid, uuid, host, null, null);
+
+		StoragePool sp = null;
+		try {
+			s_logger.debug(spd.toString());
+			sp = conn.storagePoolDefineXML(spd.toString(), 0);
+			sp.create(0);
+			return sp;
+		} catch (LibvirtException e) {
+			s_logger.debug(e.toString());
+			if (sp != null) {
+				try {
+					sp.undefine();
+					sp.free();
+				} catch (LibvirtException l) {
+					s_logger.debug("Failed to define sheepdog storage pool with: "
+							+ l.toString());
+				}
+			}
+			return null;
+		}
+	}
+
 	private StoragePool CreateSharedStoragePool(Connect conn, String uuid,
 			String host, String path) {
 		String mountPoint = path;
@@ -488,6 +515,8 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 		if (sp == null) {
 			if (type == StoragePoolType.NetworkFilesystem) {
 				sp = createNfsStoragePool(conn, name, host, path);
+			} else if (type == StoragePoolType.Sheepdog) {
+				sp = createSheepdogStoragePool(conn, name, host);
 			} else if (type == StoragePoolType.SharedMountPoint
 					|| type == StoragePoolType.Filesystem) {
 				sp = CreateSharedStoragePool(conn, name, host, path);
