@@ -53,7 +53,7 @@ public class LibvirtStoragePoolXMLParser {
 					"target").item(0);
 
 			String targetPath = null;
-			if(target.getElementsByTagName("path").getLength() > 0) {
+			if(target != null) {
 				targetPath = getTagValue("path", target);
 			}
 
