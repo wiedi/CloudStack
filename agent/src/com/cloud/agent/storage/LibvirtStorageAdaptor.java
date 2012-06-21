@@ -216,7 +216,7 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 	private StoragePool createSheepdogStoragePool(Connect conn, String uuid,
 			String host) {
 
-		LibvirtStoragePoolDef spd = new LibvirtStoragePoolDef(poolType.Sheepdog,
+		LibvirtStoragePoolDef spd = new LibvirtStoragePoolDef(poolType.SHEEPDOG,
 				uuid, uuid, host, null, null);
 
 		StoragePool sp = null;
