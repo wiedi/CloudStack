@@ -71,7 +71,7 @@ public class LibvirtStorageVolumeDef {
 		}
 		storageVolBuilder.append("<target>\n");
 		if (_volFormat == volFormat.SHEEPDOG) {
-			storageVolBuilder.append("<path>sheepdog:" + _volName + "</path>\n");
+			storageVolBuilder.append("<path>" + _volName + "</path>\n");
 		} else {
 			storageVolBuilder.append("<format type='" + _volFormat + "'/>\n");
 		}
