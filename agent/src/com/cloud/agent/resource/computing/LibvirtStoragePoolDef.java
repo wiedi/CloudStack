@@ -31,15 +31,17 @@ public class LibvirtStoragePoolDef {
 	private String _poolName;
 	private String _uuid;
 	private String _sourceHost;
+	private String _sourcePort;
 	private String _sourceDir;
 	private String _targetPath;
 
 	public LibvirtStoragePoolDef(poolType type, String poolName, String uuid,
-			String host, String dir, String targetPath) {
+			String host, String port, String dir, String targetPath) {
 		_poolType = type;
 		_poolName = poolName;
 		_uuid = uuid;
 		_sourceHost = host;
+		_sourcePort = port;
 		_sourceDir = dir;
 		_targetPath = targetPath;
 	}
@@ -54,6 +56,10 @@ public class LibvirtStoragePoolDef {
 
 	public String getSourceHost() {
 		return _sourceHost;
+	}
+
+	public String getSourcePort() {
+		return _sourcePort;
 	}
 
 	public String getSourceDir() {
@@ -77,10 +83,8 @@ public class LibvirtStoragePoolDef {
 			storagePoolBuilder.append("<dir path='" + _sourceDir + "'/>\n");
 			storagePoolBuilder.append("</source>\n");
 		} else if (_poolType == poolType.SHEEPDOG) {
-			String host = _sourceHost.split("\\:")[0];
-			String port = _sourceHost.split("\\:")[1];
 			storagePoolBuilder.append("<source>\n");
-			storagePoolBuilder.append("<host name='" + host + "' port ='" + port + "'/>\n");
+			storagePoolBuilder.append("<host name='" + _sourceHost + "' port ='" + _sourcePort + "'/>\n");
 			storagePoolBuilder.append("<name>" + _poolName + "</name>\n"); /* ? */
 			storagePoolBuilder.append("</source>\n");
 		}

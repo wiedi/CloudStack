@@ -59,7 +59,7 @@ public class LibvirtStoragePoolXMLParser {
 
 			return new LibvirtStoragePoolDef(
 					LibvirtStoragePoolDef.poolType.valueOf(type.toUpperCase()),
-					poolName, uuid, host, path, targetPath);
+					poolName, uuid, host, null, path, targetPath);
 		} catch (ParserConfigurationException e) {
 			s_logger.debug(e.toString());
 		} catch (SAXException e) {
