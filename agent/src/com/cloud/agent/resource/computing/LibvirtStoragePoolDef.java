@@ -77,9 +77,11 @@ public class LibvirtStoragePoolDef {
 			storagePoolBuilder.append("<dir path='" + _sourceDir + "'/>\n");
 			storagePoolBuilder.append("</source>\n");
 		} else if (_poolType == poolType.SHEEPDOG) {
+			String host = _sourceHost.split("\\:")[0];
+			String port = _sourceHost.split("\\:")[1];
 			storagePoolBuilder.append("<source>\n");
-			storagePoolBuilder.append("<host name='" + _sourceHost + "'/>\n");
-			storagePoolBuilder.append("<name>" + _sourceDir + "</name>\n"); /* ? */
+			storagePoolBuilder.append("<host name='" + host + "' port ='" + port + "'/>\n");
+			storagePoolBuilder.append("<name>" + _poolName + "</name>\n"); /* ? */
 			storagePoolBuilder.append("</source>\n");
 		}
 		if (_poolType != poolType.SHEEPDOG) {

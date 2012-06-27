@@ -95,6 +95,7 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 	public StoragePool getStoragePoolbyURI(Connect conn, URI uri)
 			throws LibvirtException {
 		String sourcePath;
+		String sourcePort = "0";
 		String uuid;
 		String sourceHost = "";
 		String protocal;
@@ -108,6 +109,7 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 		} else if (uri.getScheme().equalsIgnoreCase("sheepdog")) {
 			sourcePath = uri.getPath().replace("//", "/");
 			sourceHost = uri.getHost();
+			sourcePort = String.valueOf(uri.getPort());
 			uuid = UUID.nameUUIDFromBytes(
 					new String(sourceHost + sourcePath).getBytes()).toString();
 			protocal = "SHEEPDOG";
@@ -138,7 +140,7 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 					// addStoragePool(uuid);
 				} else if (protocal.equalsIgnoreCase("SHEEPDOG")) {
 					spd = new LibvirtStoragePoolDef(poolType.SHEEPDOG, uuid, uuid,
-							sourceHost, sourcePath, null);
+							sourceHost + ":" + sourcePort, sourcePath, null);
 				} else if (protocal.equalsIgnoreCase("DIR")) {
 					_storageLayer.mkdir(targetPath);
 					spd = new LibvirtStoragePoolDef(poolType.DIR, uuid, uuid,
@@ -457,6 +459,10 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 			LibvirtStoragePool pool = new LibvirtStoragePool(uuid,
 					storage.getName(), type, this, storage);
 			pool.setLocalPath(spd.getTargetPath());
+			if (spd.getPoolType() == poolType.SHEEPDOG) {
+				pool.setHostname(spd.getSourceHost().split("\\:")[0]);
+				pool.setPort(spd.getSourceHost().split("\\:")[1]);
+			}
 			getStats(pool);
 			return pool;
 		} catch (LibvirtException e) {

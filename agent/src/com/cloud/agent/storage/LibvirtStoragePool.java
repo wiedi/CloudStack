@@ -26,6 +26,8 @@ public class LibvirtStoragePool implements KVMStoragePool {
 	protected long used;
 	protected String name;
 	protected String localPath;
+	protected String hostname;
+	protected String port;
 	protected PhysicalDiskFormat defaultFormat;
 	protected StoragePoolType type;
 	protected StorageAdaptor _storageAdaptor;
@@ -129,8 +131,26 @@ public class LibvirtStoragePool implements KVMStoragePool {
 		return this.localPath;
 	}
 
+	@Override
+	public String getHostname() {
+		return this.hostname;
+	}
+
+	@Override
+	public String getPort() {
+		return this.port;
+	}
+
 	public void setLocalPath(String localPath) {
 		this.localPath = localPath;
+	}
+
+	public void setHostname(String hostname) {
+		this.hostname = hostname;
+	}
+
+	public void setPort(String port) {
+		this.port = port;
 	}
 
 	@Override

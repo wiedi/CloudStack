@@ -2620,9 +2620,13 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 				int devId = (int) volume.getDeviceId();
 
 				if (volume.getType() == Volume.Type.DATADISK) {
-					disk.defFileBasedDisk(physicalDisk.getPath(), devId,
-							DiskDef.diskBus.VIRTIO,
-							DiskDef.diskFmtType.QCOW2);
+					diskBusType = DiskDef.diskBus.VIRTIO;
+				}
+
+				if (physicalDisk.getFormat() == PhysicalDiskFormat.SHEEPDOG) {
+					disk.defSheepdogBasedDisk(physicalDisk.getPath(),
+						physicalDisk.getPool().getHostname(),
+						physicalDisk.getPool().getPort(), devId, diskBusType);
 				} else {
 					disk.defFileBasedDisk(physicalDisk.getPath(), devId,
 							diskBusType, DiskDef.diskFmtType.QCOW2);

@@ -41,6 +41,10 @@ public interface KVMStoragePool {
 
 	public String getLocalPath();
 
+	public String getHostname();
+
+	public String getPort();
+
 	public StoragePoolType getType();
 
 	public boolean delete();
