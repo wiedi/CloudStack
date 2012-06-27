@@ -489,6 +489,8 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 				disk.setFormat(KVMPhysicalDisk.PhysicalDiskFormat.QCOW2);
 			} else if (voldef.getFormat() == LibvirtStorageVolumeDef.volFormat.RAW) {
 				disk.setFormat(KVMPhysicalDisk.PhysicalDiskFormat.RAW);
+			} else if (voldef.getFormat() == LibvirtStorageVolumeDef.volFormat.SHEEPDOG) {
+				disk.setFormat(KVMPhysicalDisk.PhysicalDiskFormat.SHEEPDOG);
 			}
 			return disk;
 		} catch (LibvirtException e) {
@@ -586,6 +588,8 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 			libvirtformat = LibvirtStorageVolumeDef.volFormat.QCOW2;
 		} else if (format == PhysicalDiskFormat.RAW) {
 			libvirtformat = LibvirtStorageVolumeDef.volFormat.RAW;
+		} else if (format == PhysicalDiskFormat.SHEEPDOG) {
+			libvirtformat = LibvirtStorageVolumeDef.volFormat.SHEEPDOG;
 		}
 
 		LibvirtStorageVolumeDef volDef = new LibvirtStorageVolumeDef(name,
@@ -631,6 +635,10 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 		} else if (format == PhysicalDiskFormat.RAW) {
 			Script.runSimpleBashScript("qemu-img convert -f "
 					+ template.getFormat() + " -O raw " + template.getPath()
+					+ " " + disk.getPath());
+		} else if (format == PhysicalDiskFormat.SHEEPDOG) {
+			Script.runSimpleBashScript("qemu-img convert -f "
+					+ template.getFormat() + " -O sheepdog " + template.getPath()
 					+ " " + disk.getPath());
 		}
 		return disk;
