@@ -460,8 +460,8 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 					storage.getName(), type, this, storage);
 			pool.setLocalPath(spd.getTargetPath());
 			if (spd.getPoolType() == poolType.SHEEPDOG) {
-				pool.setHostname(spd.getSourceHost().split("\\:")[0]);
-				pool.setPort(spd.getSourceHost().split("\\:")[1]);
+				pool.setHostname(spd.getSourceHost());
+				pool.setPort(spd.getSourcePort());
 			}
 			getStats(pool);
 			return pool;
