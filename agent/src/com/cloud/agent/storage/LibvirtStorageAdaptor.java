@@ -705,6 +705,13 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 			sourceHost = storageUri.getHost();
 			uuid = UUID.randomUUID().toString();
 			protocal = StoragePoolType.NetworkFilesystem;
+		} else if (storageUri.getScheme().equalsIgnoreCase("local")) {
+			sourcePath = storageUri.getPath();
+			sourcePath = sourcePath.replace("//", "/");
+			sourceHost = storageUri.getHost();
+			uuid = UUID.nameUUIDFromBytes(new String(sourcePath).getBytes())
+					.toString();
+			protocal = StoragePoolType.Filesystem;
 		}
 
 		return createStoragePool(uuid, sourceHost, sourcePath, protocal);
