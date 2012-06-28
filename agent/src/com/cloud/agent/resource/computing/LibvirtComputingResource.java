@@ -2668,7 +2668,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 		KVMStoragePool pool = _storagePoolMgr.getStoragePool(rootVol
 				.getPoolUuid());
 
-		if(pool.getStoragePoolType() == StoragePoolType.Sheepdog) {
+		if(pool.getType() == StoragePoolType.Sheepdog) {
 			/* TODO: make tmp dir configurable? */
 			pool = _storagePoolMgr.getStoragePoolByURI("local:///tmp");
 		}
@@ -2691,7 +2691,7 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 		/* add patch disk */
 		DiskDef patchDisk = new DiskDef();
 
-		if(pool.getStoragePoolType() == StoragePoolType.Sheepdog) {
+		if(pool.getType() == StoragePoolType.Sheepdog) {
 			patchDisk.defSheepdogBasedDisk(disk.getName(), pool.getHostname(),
 					pool.getPort(), 1, rootDisk.getBusType());
 		} else {
@@ -2705,11 +2705,11 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 
 		patchSystemVm(bootArgs, datadiskPath, vmName);
 
-		if(pool.getStoragePoolType() == StoragePoolType.Sheepdog) {
+		if(pool.getType() == StoragePoolType.Sheepdog) {
 			/* convert */
 			Script.runSimpleBashScript("qemu-img convert -f raw "
-					+ template.getPath() + " sheepdog:" + pool.getHostname()
-					+ ":" pool.getPort() + ":" + disk.getPath());
+					+ disk.getPath() + " sheepdog:" + pool.getHostname()
+					+ ":" + pool.getPort() + ":" + disk.getPath());
 		}
 	}
 
