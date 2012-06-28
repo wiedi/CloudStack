@@ -81,7 +81,7 @@ public class LibvirtStoragePool implements KVMStoragePool {
 
 	@Override
 	public PhysicalDiskFormat getDefaultFormat() {
-		if(this.type == poolType.SHEEPDOG) {
+		if(this.type == StoragePoolType.Sheepdog) {
 			return PhysicalDiskFormat.SHEEPDOG;
 		}
 		return PhysicalDiskFormat.QCOW2;
