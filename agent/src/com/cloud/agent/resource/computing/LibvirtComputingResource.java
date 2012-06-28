@@ -2667,12 +2667,13 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 		VolumeTO rootVol = getVolume(vmSpec, Volume.Type.ROOT);
 		KVMStoragePool pool = _storagePoolMgr.getStoragePool(rootVol
 				.getPoolUuid());
-
+		KVMStoragePool tmp_pool = pool;
 		if(pool.getType() == StoragePoolType.Sheepdog) {
 			/* TODO: make tmp dir configurable? */
-			pool = _storagePoolMgr.getStoragePoolByURI("local:///tmp");
+			tmp_pool = _storagePoolMgr.getStoragePoolByURI("local:///tmp");
 		}
-		KVMPhysicalDisk disk = pool.createPhysicalDisk(UUID.randomUUID()
+
+		KVMPhysicalDisk disk = tmp_pool.createPhysicalDisk(UUID.randomUUID()
 					.toString(), KVMPhysicalDisk.PhysicalDiskFormat.RAW,
 					10L * 1024 * 1024);
 		String datadiskPath = disk.getPath();
