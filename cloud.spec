@@ -206,8 +206,8 @@ Group:     System Environment/Libraries
 Requires: kvm
 
 %if 0%{?fedora} >= 14 && 0%{?fedora} != 16
-Requires: cloud-qemu-kvm
-Requires: cloud-qemu-img
+Requires: qemu-kvm
+Requires: qemu-img
 %endif
 
 %if 0%{?rhel} >= 5
