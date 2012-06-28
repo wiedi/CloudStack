@@ -455,6 +455,8 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 			if (spd.getPoolType() == LibvirtStoragePoolDef.poolType.NETFS
 					|| spd.getPoolType() == LibvirtStoragePoolDef.poolType.DIR) {
 				type = StoragePoolType.Filesystem;
+			} else if (spd.getPoolType() == LibvirtStoragePoolDef.poolType.SHEEPDOG) {
+				type = StoragePoolType.Sheepdog;
 			}
 			LibvirtStoragePool pool = new LibvirtStoragePool(uuid,
 					storage.getName(), type, this, storage);

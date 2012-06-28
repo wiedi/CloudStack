@@ -2872,6 +2872,10 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 				} else if (attachingDisk.getFormat() == PhysicalDiskFormat.RAW) {
 					diskdef.defBlockBasedDisk(attachingDisk.getPath(), devId,
 							DiskDef.diskBus.VIRTIO);
+				} else if (attachingDisk.getFormat() == PhysicalDiskFormat.SHEEPDOG) {
+					diskdef.defSheepdogBasedDisk(attachingDisk.getPath(),
+						attachingDisk.getPool().getHostname(),
+						attachingDisk.getPool().getPort(), devId, DiskDef.diskBus.VIRTIO);
 				}
 			}
 
