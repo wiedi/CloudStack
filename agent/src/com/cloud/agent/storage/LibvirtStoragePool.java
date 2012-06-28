@@ -42,6 +42,7 @@ public class LibvirtStoragePool implements KVMStoragePool {
 		this.capacity = 0;
 		this.used = 0;
 		this._pool = pool;
+		this.port = "7000"; /* TODO: more generic solution? */
 
 	}
 
