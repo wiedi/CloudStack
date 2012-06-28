@@ -2693,6 +2693,9 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 		DiskDef patchDisk = new DiskDef();
 
 		if(pool.getType() == StoragePoolType.Sheepdog) {
+			pool.createPhysicalDisk(disk.getName(),
+					KVMPhysicalDisk.PhysicalDiskFormat.SHEEPDOG,
+					10L * 1024 * 1024);
 			patchDisk.defSheepdogBasedDisk(disk.getName(), pool.getHostname(),
 					pool.getPort(), 1, rootDisk.getBusType());
 		} else {
