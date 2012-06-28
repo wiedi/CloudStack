@@ -412,7 +412,7 @@ public class LibvirtVMDef {
 			_diskLabel = getDevLabel(devId, bus);
 			_sourceHost = host;
 			_sourcePort = "7000";
-			if(port)
+			if(port != null)
 				_sourcePort = port;
 			_diskFmtType = diskFmtType.SHEEPDOG;
 			_bus = bus;
