@@ -683,7 +683,7 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 		if(newDisk.getFormat() == PhysicalDiskFormat.SHEEPDOG) {
 			Script.runSimpleBashScript("collie vdi delete " + newDisk.getName()
 					+ " ; qemu-img convert -f " + disk.getFormat()
-					+ sourcePath + " "
+					+ " " + sourcePath + " "
 					+ "sheepdog:" + newDisk.getName());
 		} else {
 			Script.runSimpleBashScript("qemu-img convert -f " + disk.getFormat()
