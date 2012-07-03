@@ -71,9 +71,12 @@ public class KVMStoragePoolManager {
 
 	public KVMPhysicalDisk createDiskFromTemplate(KVMPhysicalDisk template,
 			String name, KVMStoragePool destPool) {
+		PhysicalDiskFormat format = KVMPhysicalDisk.PhysicalDiskFormat.QCOW2;
+		if(destPool.getType() == StoragePoolType.Sheepdog) {
+			format = KVMPhysicalDisk.PhysicalDiskFormat.SHEEPDOG;
+		}
 		return this._storageAdaptor.createDiskFromTemplate(template, name,
-				KVMPhysicalDisk.PhysicalDiskFormat.QCOW2,
-				template.getSize(), destPool);
+				format,	template.getSize(), destPool);
 	}
 
 	public KVMPhysicalDisk createTemplateFromDisk(KVMPhysicalDisk disk,
