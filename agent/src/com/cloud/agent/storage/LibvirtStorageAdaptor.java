@@ -679,7 +679,7 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 		String sourcePath = disk.getPath();
 		String destPath = newDisk.getPath();
 
-		if(newDisk.getFormat() = PhysicalDiskFormat.SHEEPDOG) {
+		if(newDisk.getFormat() == PhysicalDiskFormat.SHEEPDOG) {
 			Script.runSimpleBashScript("collie vdi delete " + newDisk.getName()
 					+ " ; qemu-img convert -f " + disk.getFormat()
 					+ sourcePath + " "
