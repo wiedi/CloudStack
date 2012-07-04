@@ -2712,9 +2712,9 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 		if(pool.getType() == StoragePoolType.Sheepdog) {
 			/* convert */
 			Script.runSimpleBashScript("collie vdi delete " + disk.getName()
-					+ " && qemu-img convert -f raw " + disk.getPath()
+					+ " ; qemu-img convert -f raw " + disk.getPath()
 					+ " sheepdog:" + pool.getHostname()
-					+ ":7000:" + disk.getName());
+					+ ":7000:" + disk.getName() + " ; rm " + disk.getPath());
 		}
 	}
 
