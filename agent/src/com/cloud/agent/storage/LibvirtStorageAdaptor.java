@@ -639,10 +639,18 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 					+ template.getFormat() + " -O raw " + template.getPath()
 					+ " " + disk.getPath());
 		} else if (format == PhysicalDiskFormat.SHEEPDOG) {
-			Script.runSimpleBashScript("collie vdi delete " + disk.getPath()
-					+ " ; qemu-img convert -f " + template.getFormat()
-					+ " " + template.getPath()
-					+ " sheepdog:" + disk.getPath());
+			if (template.getFormat() == PhysicalDiskFormat.SHEEPDOG) {
+				/* both are on sheepdog, take a shortcut */
+				Script.runSimpleBashScript("collie vdi delete " + disk.getPath()
+					+ " ; collie vdi clone -s 1 " + template.getPath() + " "
+					+ disk.getPath() + " ; collie vdi snapshot " + disk.getPath()
+					);
+			} else {
+				Script.runSimpleBashScript("collie vdi delete " + disk.getPath()
+						+ " ; qemu-img convert -f " + template.getFormat()
+						+ " " + template.getPath()
+						+ " sheepdog:" + disk.getPath());
+			}
 		}
 		return disk;
 	}
