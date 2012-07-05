@@ -2598,9 +2598,13 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 				int devId = (int) volume.getDeviceId();
 
 				if (volume.getType() == Volume.Type.DATADISK) {
-					disk.defFileBasedDisk(physicalDisk.getPath(), devId,
-							DiskDef.diskBus.VIRTIO,
-							DiskDef.diskFmtType.QCOW2);
+					diskBusType = DiskDef.diskBus.VIRTIO;
+				}
+
+				if (physicalDisk.getFormat() == PhysicalDiskFormat.SHEEPDOG) {
+					disk.defSheepdogBasedDisk(physicalDisk.getPath(),
+						physicalDisk.getPool().getHostname(),
+						physicalDisk.getPool().getPort(), devId, diskBusType);
 				} else {
 					disk.defFileBasedDisk(physicalDisk.getPath(), devId,
 							diskBusType, DiskDef.diskFmtType.QCOW2);
@@ -2641,31 +2645,55 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 		VolumeTO rootVol = getVolume(vmSpec, Volume.Type.ROOT);
 		KVMStoragePool pool = _storagePoolMgr.getStoragePool(rootVol
 				.getPoolUuid());
-		KVMPhysicalDisk disk = pool.createPhysicalDisk(UUID.randomUUID()
-				.toString(), KVMPhysicalDisk.PhysicalDiskFormat.RAW,
-				10L * 1024 * 1024);
+		KVMStoragePool tmp_pool = pool;
+		if(pool.getType() == StoragePoolType.Sheepdog) {
+			/* TODO: make tmp dir configurable? */
+			tmp_pool = _storagePoolMgr.getStoragePoolByURI("local:///tmp");
+		}
+
+		KVMPhysicalDisk disk = tmp_pool.createPhysicalDisk(UUID.randomUUID()
+					.toString(), KVMPhysicalDisk.PhysicalDiskFormat.RAW,
+					10L * 1024 * 1024);
+		String datadiskPath = disk.getPath();
+
 		/* Format/create fs on this disk */
 		final Script command = new Script(_createvmPath, _timeout, s_logger);
-		command.add("-f", disk.getPath());
+		command.add("-f", datadiskPath);
+
 		String result = command.execute();
 		if (result != null) {
 			s_logger.debug("Failed to create data disk: " + result);
 			throw new InternalErrorException("Failed to create data disk: "
 					+ result);
 		}
-		String datadiskPath = disk.getPath();
 
 		/* add patch disk */
 		DiskDef patchDisk = new DiskDef();
 
-		patchDisk.defFileBasedDisk(datadiskPath, 1, rootDisk.getBusType(),
-				DiskDef.diskFmtType.RAW);
+		if(pool.getType() == StoragePoolType.Sheepdog) {
+			pool.createPhysicalDisk(disk.getName(),
+					KVMPhysicalDisk.PhysicalDiskFormat.SHEEPDOG,
+					10L * 1024 * 1024);
+			patchDisk.defSheepdogBasedDisk(disk.getName(), pool.getHostname(),
+					pool.getPort(), 1, rootDisk.getBusType());
+		} else {
+			patchDisk.defFileBasedDisk(datadiskPath, 1, rootDisk.getBusType(),
+					DiskDef.diskFmtType.RAW);
+		}
 		
 		disks.add(patchDisk);
 
 		String bootArgs = vmSpec.getBootArgs();
 
 		patchSystemVm(bootArgs, datadiskPath, vmName);
+
+		if(pool.getType() == StoragePoolType.Sheepdog) {
+			/* convert */
+			Script.runSimpleBashScript("collie vdi delete " + disk.getName()
+					+ " ; qemu-img convert -f raw " + disk.getPath()
+					+ " sheepdog:" + pool.getHostname()
+					+ ":7000:" + disk.getName() + " ; rm " + disk.getPath());
+		}
 	}
 
 	private String createVlanBr(String vlanId, String nic)
@@ -2850,6 +2878,10 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 				} else if (attachingDisk.getFormat() == PhysicalDiskFormat.RAW) {
 					diskdef.defBlockBasedDisk(attachingDisk.getPath(), devId,
 							DiskDef.diskBus.VIRTIO);
+				} else if (attachingDisk.getFormat() == PhysicalDiskFormat.SHEEPDOG) {
+					diskdef.defSheepdogBasedDisk(attachingDisk.getPath(),
+						attachingDisk.getPool().getHostname(),
+						attachingDisk.getPool().getPort(), devId, DiskDef.diskBus.VIRTIO);
 				}
 			}
 

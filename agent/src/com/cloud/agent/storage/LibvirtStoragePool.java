@@ -26,6 +26,8 @@ public class LibvirtStoragePool implements KVMStoragePool {
 	protected long used;
 	protected String name;
 	protected String localPath;
+	protected String hostname;
+	protected String port;
 	protected PhysicalDiskFormat defaultFormat;
 	protected StoragePoolType type;
 	protected StorageAdaptor _storageAdaptor;
@@ -40,6 +42,7 @@ public class LibvirtStoragePool implements KVMStoragePool {
 		this.capacity = 0;
 		this.used = 0;
 		this._pool = pool;
+		this.port = "7000"; /* TODO: more generic solution? */
 
 	}
 
@@ -79,6 +82,9 @@ public class LibvirtStoragePool implements KVMStoragePool {
 
 	@Override
 	public PhysicalDiskFormat getDefaultFormat() {
+		if(this.type == StoragePoolType.Sheepdog) {
+			return PhysicalDiskFormat.SHEEPDOG;
+		}
 		return PhysicalDiskFormat.QCOW2;
 	}
 
@@ -129,8 +135,26 @@ public class LibvirtStoragePool implements KVMStoragePool {
 		return this.localPath;
 	}
 
+	@Override
+	public String getHostname() {
+		return this.hostname;
+	}
+
+	@Override
+	public String getPort() {
+		return this.port;
+	}
+
 	public void setLocalPath(String localPath) {
 		this.localPath = localPath;
+	}
+
+	public void setHostname(String hostname) {
+		this.hostname = hostname;
+	}
+
+	public void setPort(String port) {
+		this.port = port;
 	}
 
 	@Override

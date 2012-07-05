@@ -813,7 +813,7 @@ def run_agent(args):
 	"""runs the agent""" # FIXME: make this use the run/debug options
 	conf = _getbuildcontext()
 	if not _exists(_join(conf.env.LIBEXECDIR,"agent-runner")): Scripting.install(conf)
-	_check_call("sudo",[_join(conf.env.LIBEXECDIR,"agent-runner")])
+	_check_call(["sudo"] + [_join(conf.env.LIBEXECDIR,"agent-runner")])
 
 @throws_command_errors
 def run_console_proxy(args):

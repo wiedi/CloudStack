@@ -95,6 +95,7 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 	public StoragePool getStoragePoolbyURI(Connect conn, URI uri)
 			throws LibvirtException {
 		String sourcePath;
+		String sourcePort = "0";
 		String uuid;
 		String sourceHost = "";
 		String protocal;
@@ -105,6 +106,13 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 			uuid = UUID.nameUUIDFromBytes(new String(sourcePath).getBytes())
 					.toString();
 			protocal = "DIR";
+		} else if (uri.getScheme().equalsIgnoreCase("sheepdog")) {
+			sourcePath = uri.getPath().replace("//", "/");
+			sourceHost = uri.getHost();
+			sourcePort = String.valueOf(uri.getPort());
+			uuid = UUID.nameUUIDFromBytes(
+					new String(sourceHost + sourcePath).getBytes()).toString();
+			protocal = "SHEEPDOG";
 		} else {
 			sourcePath = uri.getPath();
 			sourcePath = sourcePath.replace("//", "/");
@@ -127,14 +135,16 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 				if (protocal.equalsIgnoreCase("NFS")) {
 					_storageLayer.mkdir(targetPath);
 					spd = new LibvirtStoragePoolDef(poolType.NETFS, uuid, uuid,
-							sourceHost, sourcePath, targetPath);
+							sourceHost, null, sourcePath, targetPath);
 					s_logger.debug(spd.toString());
 					// addStoragePool(uuid);
-
+				} else if (protocal.equalsIgnoreCase("SHEEPDOG")) {
+					spd = new LibvirtStoragePoolDef(poolType.SHEEPDOG, uuid, uuid,
+							sourceHost, sourcePort, sourcePath, null);
 				} else if (protocal.equalsIgnoreCase("DIR")) {
 					_storageLayer.mkdir(targetPath);
 					spd = new LibvirtStoragePoolDef(poolType.DIR, uuid, uuid,
-							null, null, sourcePath);
+							null, null, null, sourcePath);
 				}
 
 				synchronized (getStoragePool(uuid)) {
@@ -182,7 +192,7 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 			String host, String path) {
 		String targetPath = _mountPoint + File.separator + uuid;
 		LibvirtStoragePoolDef spd = new LibvirtStoragePoolDef(poolType.NETFS,
-				uuid, uuid, host, path, targetPath);
+				uuid, uuid, host, null, path, targetPath);
 		_storageLayer.mkdir(targetPath);
 		StoragePool sp = null;
 		try {
@@ -205,6 +215,33 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 		}
 	}
 
+	private StoragePool createSheepdogStoragePool(Connect conn, String uuid,
+			String host, String port) {
+
+		LibvirtStoragePoolDef spd = new LibvirtStoragePoolDef(poolType.SHEEPDOG,
+				uuid, uuid, host, port, null, null);
+
+		StoragePool sp = null;
+		try {
+			s_logger.debug(spd.toString());
+			sp = conn.storagePoolDefineXML(spd.toString(), 0);
+			sp.create(0);
+			return sp;
+		} catch (LibvirtException e) {
+			s_logger.debug(e.toString());
+			if (sp != null) {
+				try {
+					sp.undefine();
+					sp.free();
+				} catch (LibvirtException l) {
+					s_logger.debug("Failed to define sheepdog storage pool with: "
+							+ l.toString());
+				}
+			}
+			return null;
+		}
+	}
+
 	private StoragePool CreateSharedStoragePool(Connect conn, String uuid,
 			String host, String path) {
 		String mountPoint = path;
@@ -212,7 +249,7 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 			return null;
 		}
 		LibvirtStoragePoolDef spd = new LibvirtStoragePoolDef(poolType.DIR,
-				uuid, uuid, host, path, path);
+				uuid, uuid, host, null, path, path);
 		StoragePool sp = null;
 		try {
 			s_logger.debug(spd.toString());
@@ -243,7 +280,7 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 		volgroupName = volgroupName.replaceFirst("/", "");
 
 		LibvirtStoragePoolDef spd = new LibvirtStoragePoolDef(poolType.LOGICAL,
-				volgroupName, uuid, host, volgroupPath, volgroupPath);
+				volgroupName, uuid, host, null, volgroupPath, volgroupPath);
 		StoragePool sp = null;
 		try {
 			s_logger.debug(spd.toString());
@@ -354,7 +391,7 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 
 		if (pool == null) {
 			LibvirtStoragePoolDef spd = new LibvirtStoragePoolDef(poolType.DIR,
-					uuid, uuid, null, null, localStoragePath);
+					uuid, uuid, null, null, null, localStoragePath);
 			try {
 				pool = conn.storagePoolDefineXML(spd.toString(), 0);
 				pool.create(0);
@@ -418,10 +455,16 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 			if (spd.getPoolType() == LibvirtStoragePoolDef.poolType.NETFS
 					|| spd.getPoolType() == LibvirtStoragePoolDef.poolType.DIR) {
 				type = StoragePoolType.Filesystem;
+			} else if (spd.getPoolType() == LibvirtStoragePoolDef.poolType.SHEEPDOG) {
+				type = StoragePoolType.Sheepdog;
 			}
 			LibvirtStoragePool pool = new LibvirtStoragePool(uuid,
 					storage.getName(), type, this, storage);
 			pool.setLocalPath(spd.getTargetPath());
+			if (spd.getPoolType() == poolType.SHEEPDOG) {
+				pool.setHostname(spd.getSourceHost());
+				pool.setPort(spd.getSourcePort());
+			}
 			getStats(pool);
 			return pool;
 		} catch (LibvirtException e) {
@@ -452,6 +495,8 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 				disk.setFormat(KVMPhysicalDisk.PhysicalDiskFormat.QCOW2);
 			} else if (voldef.getFormat() == LibvirtStorageVolumeDef.volFormat.RAW) {
 				disk.setFormat(KVMPhysicalDisk.PhysicalDiskFormat.RAW);
+			} else if (voldef.getFormat() == LibvirtStorageVolumeDef.volFormat.SHEEPDOG) {
+				disk.setFormat(KVMPhysicalDisk.PhysicalDiskFormat.SHEEPDOG);
 			}
 			return disk;
 		} catch (LibvirtException e) {
@@ -484,6 +529,8 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 		if (sp == null) {
 			if (type == StoragePoolType.NetworkFilesystem) {
 				sp = createNfsStoragePool(conn, name, host, path);
+			} else if (type == StoragePoolType.Sheepdog) {
+				sp = createSheepdogStoragePool(conn, name, host, "7000");
 			} else if (type == StoragePoolType.SharedMountPoint
 					|| type == StoragePoolType.Filesystem) {
 				sp = CreateSharedStoragePool(conn, name, host, path);
@@ -547,6 +594,8 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 			libvirtformat = LibvirtStorageVolumeDef.volFormat.QCOW2;
 		} else if (format == PhysicalDiskFormat.RAW) {
 			libvirtformat = LibvirtStorageVolumeDef.volFormat.RAW;
+		} else if (format == PhysicalDiskFormat.SHEEPDOG) {
+			libvirtformat = LibvirtStorageVolumeDef.volFormat.SHEEPDOG;
 		}
 
 		LibvirtStorageVolumeDef volDef = new LibvirtStorageVolumeDef(name,
@@ -593,6 +642,19 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 			Script.runSimpleBashScript("qemu-img convert -f "
 					+ template.getFormat() + " -O raw " + template.getPath()
 					+ " " + disk.getPath());
+		} else if (format == PhysicalDiskFormat.SHEEPDOG) {
+			if (template.getFormat() == PhysicalDiskFormat.SHEEPDOG) {
+				/* both are on sheepdog, take a shortcut */
+				Script.runSimpleBashScript("collie vdi delete " + disk.getPath()
+					+ " ; collie vdi clone -s 1 " + template.getPath() + " "
+					+ disk.getPath() + " ; collie vdi snapshot " + disk.getPath()
+					);
+			} else {
+				Script.runSimpleBashScript("collie vdi delete " + disk.getPath()
+						+ " ; qemu-img convert -f " + template.getFormat()
+						+ " " + template.getPath()
+						+ " sheepdog:" + disk.getPath());
+			}
 		}
 		return disk;
 	}
@@ -630,9 +692,16 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 		String sourcePath = disk.getPath();
 		String destPath = newDisk.getPath();
 
-		Script.runSimpleBashScript("qemu-img convert -f " + disk.getFormat()
-				+ " -O " + newDisk.getFormat() + " " + sourcePath + " "
-				+ destPath);
+		if(newDisk.getFormat() == PhysicalDiskFormat.SHEEPDOG) {
+			Script.runSimpleBashScript("collie vdi delete " + newDisk.getName()
+					+ " ; qemu-img convert -f " + disk.getFormat()
+					+ " " + sourcePath + " "
+					+ "sheepdog:" + newDisk.getName());
+		} else {
+			Script.runSimpleBashScript("qemu-img convert -f " + disk.getFormat()
+					+ " -O " + newDisk.getFormat() + " " + sourcePath + " "
+					+ destPath);
+		}
 		return newDisk;
 	}
 
@@ -698,6 +767,13 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 			sourcePath = sourcePath.replace("//", "/");
 			sourceHost = storageUri.getHost();
 			protocal = StoragePoolType.NetworkFilesystem;
+		} else if (storageUri.getScheme().equalsIgnoreCase("local")) {
+			sourcePath = storageUri.getPath();
+			sourcePath = sourcePath.replace("//", "/");
+			sourceHost = storageUri.getHost();
+			uuid = UUID.nameUUIDFromBytes(new String(sourcePath).getBytes())
+					.toString();
+			protocal = StoragePoolType.Filesystem;
 		}
 
 		return createStoragePool(name, sourceHost, sourcePath, protocal);

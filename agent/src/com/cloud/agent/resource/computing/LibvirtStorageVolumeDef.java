@@ -14,7 +14,7 @@ package com.cloud.agent.resource.computing;
 
 public class LibvirtStorageVolumeDef {
 	public enum volFormat {
-		RAW("raw"), QCOW2("qcow2"), DIR("dir");
+		RAW("raw"), QCOW2("qcow2"), DIR("dir"), SHEEPDOG("sheepdog");
 		private String _format;
 
 		volFormat(String format) {
@@ -34,6 +34,8 @@ public class LibvirtStorageVolumeDef {
 				return RAW;
 			} else if (format.equalsIgnoreCase("qcow2")) {
 				return QCOW2;
+			} else if (format.equalsIgnoreCase("sheepdog")) {
+				return SHEEPDOG;
 			}
 			return null;
 		}
@@ -68,7 +70,11 @@ public class LibvirtStorageVolumeDef {
 					.append("<capacity >" + _volSize + "</capacity>\n");
 		}
 		storageVolBuilder.append("<target>\n");
-		storageVolBuilder.append("<format type='" + _volFormat + "'/>\n");
+		if (_volFormat == volFormat.SHEEPDOG) {
+			storageVolBuilder.append("<path>" + _volName + "</path>\n");
+		} else {
+			storageVolBuilder.append("<format type='" + _volFormat + "'/>\n");
+		}
 		storageVolBuilder.append("<permissions>");
 		storageVolBuilder.append("<mode>0744</mode>");
 		storageVolBuilder.append("</permissions>");

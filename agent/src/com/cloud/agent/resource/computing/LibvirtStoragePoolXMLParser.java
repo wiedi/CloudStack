@@ -51,11 +51,15 @@ public class LibvirtStoragePoolXMLParser {
 
 			Element target = (Element) rootElement.getElementsByTagName(
 					"target").item(0);
-			String targetPath = getTagValue("path", target);
+
+			String targetPath = null;
+			if(target != null) {
+				targetPath = getTagValue("path", target);
+			}
 
 			return new LibvirtStoragePoolDef(
 					LibvirtStoragePoolDef.poolType.valueOf(type.toUpperCase()),
-					poolName, uuid, host, path, targetPath);
+					poolName, uuid, host, null, path, targetPath);
 		} catch (ParserConfigurationException e) {
 			s_logger.debug(e.toString());
 		} catch (SAXException e) {
