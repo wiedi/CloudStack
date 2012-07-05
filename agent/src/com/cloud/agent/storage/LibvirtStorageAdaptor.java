@@ -707,7 +707,8 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 
 	@Override
 	public KVMStoragePool getStoragePoolByUri(String uri) {
-		return this.getStoragePoolByUri(uri, UUID.randomUUID().toString());
+		return this.getStoragePoolByUri(uri, UUID.nameUUIDFromBytes(
+			new String(uri).getBytes()).toString());
 	}
 
 	@Override
@@ -771,8 +772,6 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 			sourcePath = storageUri.getPath();
 			sourcePath = sourcePath.replace("//", "/");
 			sourceHost = storageUri.getHost();
-			uuid = UUID.nameUUIDFromBytes(new String(sourcePath).getBytes())
-					.toString();
 			protocal = StoragePoolType.Filesystem;
 		}
 
