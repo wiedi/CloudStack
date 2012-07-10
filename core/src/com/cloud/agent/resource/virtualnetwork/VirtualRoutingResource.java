@@ -519,7 +519,7 @@ public class VirtualRoutingResource implements Manager {
     }
 
     protected String getDomRVersion(String routerIP) {
-        return routerProxy("netusage.sh", routerIP, null);
+        return routerProxy("get_template_version.sh", routerIP, null);
     }
 
     protected Answer execute(GetDomRVersionCmd cmd) {
