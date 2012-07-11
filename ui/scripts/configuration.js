@@ -1028,7 +1028,9 @@
                 title: 'label.add.network.offering',               														
 								preFilter: function(args) {								  									
                   var $availability = args.$form.find('.form-item[rel=availability]');
-                  var $serviceOfferingId = args.$form.find('.form-item[rel=serviceOfferingId]');
+                  var $serviceOfferingId = args.$form.find('.form-item[rel=serviceOfferingId]');									
+									var $conservemode = args.$form.find('.form-item[rel=conservemode]');										
+                  var $serviceSourceNatRedundantRouterCapabilityCheckbox = args.$form.find('.form-item[rel="service.SourceNat.redundantRouterCapabilityCheckbox"]');	                  		
                   var hasAdvancedZones = false;
 
                   // Check whether there are any advanced zones
@@ -1060,7 +1062,8 @@
                       $availability.hide();
                     }
 
-										//check whether to show or hide serviceOfferingId field										
+										
+										//when service(s) has Virtual Router as provider.....							
                     var havingVirtualRouterForAtLeastOneService = false;									
 										$(serviceCheckboxNames).each(function(){										  
 											var checkboxName = this;                      								
@@ -1072,13 +1075,45 @@
 													return false; //break each loop
 												}
 											}																					
-										});
-                    
-                    if(havingVirtualRouterForAtLeastOneService == true)
+										});                    
+                    if(havingVirtualRouterForAtLeastOneService == true) {
                       $serviceOfferingId.css('display', 'inline-block');
-                    else
+										}
+                    else {
                       $serviceOfferingId.hide();		
+										}
 
+										
+										/*
+										when service(s) has VPC Virtual Router as provider:
+                    (1) Conserve mode is set to unchecked and grayed out.	
+                    (2) Redundant router capability checkbox is set to unchecked and grayed out.										
+                    */										
+                    var havingVpcVirtualRouterForAtLeastOneService = false;									
+										$(serviceCheckboxNames).each(function(){										  
+											var checkboxName = this;                      								
+											if($("input[name='" + checkboxName + "']").is(":checked") == true) {											  
+											  var providerFieldName = checkboxName.replace(".isEnabled", ".provider"); //either dropdown or input hidden field
+                        var providerName = $("[name='" + providerFieldName + "']").val(); 
+												if(providerName == "VpcVirtualRouter") {
+												  havingVpcVirtualRouterForAtLeastOneService = true;
+													return false; //break each loop
+												}
+											}																					
+										});                    
+                    if(havingVpcVirtualRouterForAtLeastOneService == true) {
+										  $conservemode.find("input[type=checkbox]").attr("disabled", "disabled"); 
+                      $conservemode.find("input[type=checkbox]").attr('checked', false);		
+
+                      $serviceSourceNatRedundantRouterCapabilityCheckbox.find("input[type=checkbox]").attr("disabled", "disabled"); 
+                      $serviceSourceNatRedundantRouterCapabilityCheckbox.find("input[type=checkbox]").attr('checked', false);										
+										}
+                    else {
+                      $conservemode.find("input[type=checkbox]").removeAttr("disabled"); 
+                      $serviceSourceNatRedundantRouterCapabilityCheckbox.find("input[type=checkbox]").removeAttr("disabled"); 									
+										}
+										
+										
 	                  $(':ui-dialog').dialog('option', 'position', 'center');
 
 										

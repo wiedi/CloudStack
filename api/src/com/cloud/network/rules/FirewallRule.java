@@ -86,4 +86,9 @@ public interface FirewallRule extends ControlledEntity {
 
 	FirewallRuleType getType();
 
+    /**
+     * @return
+     */
+    TrafficType getTrafficType();
+
 }

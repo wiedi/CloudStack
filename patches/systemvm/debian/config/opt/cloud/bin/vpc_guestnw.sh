@@ -31,6 +31,48 @@ usage() {
 }
 
 
+destroy_acl_chain() {
+  sudo iptables -t mangle -F ACL_OUTBOUND_$dev 2>/dev/null
+  sudo iptables -t mangle -D PREROUTING -m state --state NEW -i $dev -s $subnet/$mask ! -d $ip -j ACL_OUTBOUND_$dev  2>/dev/null
+  sudo iptables -t mangle -X ACL_OUTBOUND_$dev 2>/dev/null
+  sudo iptables -F ACL_INBOUND_$dev 2>/dev/null
+  sudo iptables -D FORWARD -o $dev -d $subnet/$mask -j ACL_INBOUND_$dev  2>/dev/null
+  sudo iptables -X ACL_INBOUND_$dev 2>/dev/null
+
+}
+
+create_acl_chain() {
+  destroy_acl_chain
+  sudo iptables -t mangle -N ACL_OUTBOUND_$dev 2>/dev/null
+  sudo iptables -t mangle -A ACL_OUTBOUND_$dev -j DROP 2>/dev/null
+  sudo iptables -t mangle -A PREROUTING -m state --state NEW -i $dev -s $subnet/$mask ! -d $ip -j ACL_OUTBOUND_$dev  2>/dev/null
+  sudo iptables -N ACL_INBOUND_$dev 2>/dev/null
+  # drop if no rules match (this will be the last rule in the chain)
+  sudo iptables -A ACL_INBOUND_$dev -j DROP 2>/dev/null
+  sudo iptables -A FORWARD -o $dev -d $subnet/$mask -j ACL_INBOUND_$dev  2>/dev/null
+}
+
+
+setup_apache2() {
+  logger_it "Setting up apache web server for $dev"
+  cp /etc/apache2/vhostexample.conf /etc/apache2/conf.d/vhost$dev.conf
+  sed -i -e "s/<VirtualHost.*:80>/<VirtualHost $ip:80>/" /etc/apache2/conf.d/vhost$dev.conf
+  sed -i -e "s/<VirtualHost.*:443>/<VirtualHost $ip:443>/" /etc/apache2/conf.d/vhost$dev.conf
+  sed -i -e "s/\tServerName.*/\tServerName vhost$dev.cloudinternal.com/" /etc/apache2/conf.d/vhost$dev.conf
+  sed -i -e "s/Listen .*:80/Listen $ip:80/g" /etc/apache2/conf.d/vhost$dev.conf
+  sed -i -e "s/Listen .*:443/Listen $ip:443/g" /etc/apache2/conf.d/vhost$dev.conf
+  service apache2 restart
+  sudo iptables -A INPUT -i $dev -d $ip -p tcp -m state --state NEW --dport 80 -j ACCEPT
+}
+
+desetup_apache2() {
+  logger_it "Desetting up apache web server for $dev"
+  rm -f /etc/apache2/conf.d/vhost$dev.conf
+  service apache2 restart
+  sudo iptables -D INPUT -i $dev -d $ip -p tcp -m state --state NEW --dport 80 -j ACCEPT
+}
+
+
 setup_dnsmasq() {
   logger -t cloud "Setting up dnsmasq for network $ip/$mask "
   # setup static 
@@ -75,6 +117,13 @@ setup_usage() {
   sudo iptables -t mangle -A POSTROUTING -o $dev -j NETWORK_STATS_$dev
 }
 
+desetup_usage() {
+  sudo iptables -t mangle -F NETWORK_STATS_$dev
+  sudo iptables -t mangle -D POSTROUTING -s $subnet/$mask -j NETWORK_STATS_$dev
+  sudo iptables -t mangle -D POSTROUTING -o $dev -j NETWORK_STATS_$dev
+  sudo iptables -t mangle -X NETWORK_STATS_$dev
+}
+
 create_guest_network() {
   logger -t cloud " $(basename $0): Create network on interface $dev,  gateway $gw, network $ip/$mask "
   # setup ip configuration
@@ -92,9 +141,10 @@ create_guest_network() {
   sudo iptables -t mangle -A PREROUTING -i $dev -m state --state ESTABLISHED,RELATED -j CONNMARK --restore-mark
   # set up hairpin
   sudo iptables -t nat -A POSTROUTING -s $subnet/$mask -o $dev -j SNAT --to-source $ip
-
+  create_acl_chain
   setup_usage
   setup_dnsmasq
+  setup_apache2
 }
 
 destroy_guest_network() {
@@ -105,7 +155,10 @@ destroy_guest_network() {
   sudo iptables -D INPUT -i $dev -p udp -m udp --dport 53 -j ACCEPT
   sudo iptables -t mangle -D PREROUTING -i $dev -m state --state ESTABLISHED,RELATED -j CONNMARK --restore-mark
   sudo iptables -t nat -A POSTROUTING -s $subnet/$mask -o $dev -j SNAT --to-source $ip
+  destroy_acl_outbound_chain
+  desetup_usage
   desetup_dnsmasq
+  desetup_apache2
 }
 
 #set -x

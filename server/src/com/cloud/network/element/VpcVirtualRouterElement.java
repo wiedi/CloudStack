@@ -46,7 +46,6 @@ import com.cloud.network.router.VirtualRouter;
 import com.cloud.network.router.VirtualRouter.Role;
 import com.cloud.network.router.VpcVirtualNetworkApplianceManager;
 import com.cloud.network.rules.FirewallRule;
-import com.cloud.network.rules.NetworkACL;
 import com.cloud.network.vpc.PrivateGateway;
 import com.cloud.network.vpc.StaticRouteProfile;
 import com.cloud.network.vpc.Vpc;
@@ -85,7 +84,6 @@ public class VpcVirtualRouterElement extends VirtualRouterElement implements Vpc
     
     
     private static final Map<Service, Map<Capability, String>> capabilities = setCapabilities();
-    
     
     @Override
     protected boolean canHandle(Network network, Service service) {
@@ -406,7 +404,7 @@ public class VpcVirtualRouterElement extends VirtualRouterElement implements Vpc
                 return true;
             }
 
-            if (!_vpcRouterMgr.applyNetworkACLs(config, (List<NetworkACL>)rules, routers)) {
+            if (!_vpcRouterMgr.applyNetworkACLs(config, rules, routers)) {
                 throw new CloudRuntimeException("Failed to apply firewall rules in network " + config.getId());
             } else {
                 return true;
@@ -442,21 +440,24 @@ public class VpcVirtualRouterElement extends VirtualRouterElement implements Vpc
         Site2SiteVpnGateway vpnGw = _vpnGatewayDao.findById(conn.getVpnGatewayId());
         IpAddress ip = _ipAddressDao.findById(vpnGw.getAddrId());
 
-        /*
-        if (!canHandle(network, Service.Vpn)) {
-            return false;
-        }
-        */
-
         Map<Capability, String> vpnCapabilities = capabilities.get(Service.Vpn);
         if (!vpnCapabilities.get(Capability.VpnTypes).contains("s2svpn")) {
+            s_logger.error("try to start site 2 site vpn on unsupported network element?");
             return false;
+        }
+        
+        Long vpcId = ip.getVpcId();
+        Vpc vpc = _vpcMgr.getVpc(vpcId);
+        
+        if (!_vpcMgr.vpcProviderEnabledInZone(vpc.getZoneId())) {
+            throw new ResourceUnavailableException("VPC provider is not enabled in zone " + vpc.getZoneId(),
+                    DataCenter.class, vpc.getZoneId());
         }
 
         List<DomainRouterVO> routers = _vpcMgr.getVpcRouters(ip.getVpcId());
         if (routers == null || routers.size() != 1) {
-            s_logger.debug("Cannot enable site-to-site VPN on the backend; virtual router doesn't exist in the vpc " + ip.getVpcId());
-            return true;
+            throw new ResourceUnavailableException("Cannot enable site-to-site VPN on the backend; virtual router doesn't exist in the vpc " + ip.getVpcId(),
+                    DataCenter.class, vpc.getZoneId());
         }
 
         return _vpcRouterMgr.startSite2SiteVpn(conn, routers.get(0));
@@ -467,21 +468,24 @@ public class VpcVirtualRouterElement extends VirtualRouterElement implements Vpc
         Site2SiteVpnGateway vpnGw = _vpnGatewayDao.findById(conn.getVpnGatewayId());
         IpAddress ip = _ipAddressDao.findById(vpnGw.getAddrId());
 
-        /*
-        if (!canHandle(network, Service.Vpn)) {
-            return false;
-        }
-        */
-
         Map<Capability, String> vpnCapabilities = capabilities.get(Service.Vpn);
         if (!vpnCapabilities.get(Capability.VpnTypes).contains("s2svpn")) {
+            s_logger.error("try to stop site 2 site vpn on unsupported network element?");
             return false;
+        }
+        
+        Long vpcId = ip.getVpcId();
+        Vpc vpc = _vpcMgr.getVpc(vpcId);
+        
+        if (!_vpcMgr.vpcProviderEnabledInZone(vpc.getZoneId())) {
+            throw new ResourceUnavailableException("VPC provider is not enabled in zone " + vpc.getZoneId(),
+                    DataCenter.class, vpc.getZoneId());
         }
 
         List<DomainRouterVO> routers = _vpcMgr.getVpcRouters(ip.getVpcId());
         if (routers == null || routers.size() != 1) {
-            s_logger.debug("Cannot disable site-to-site VPN on the backend; virtual router doesn't exist in the vpc " + ip.getVpcId());
-            return true;
+            throw new ResourceUnavailableException("Cannot enable site-to-site VPN on the backend; virtual router doesn't exist in the vpc " + ip.getVpcId(),
+                    DataCenter.class, vpc.getZoneId());
         }
 
         return _vpcRouterMgr.stopSite2SiteVpn(conn, routers.get(0));

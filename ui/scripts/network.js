@@ -113,14 +113,13 @@
         disallowedActions.push('disableStaticNAT');
       }
 
-      if ($.inArray('Vpn', $.map(args.context.networks[0].service,
-                                 function(service) { return service.name; })) > -1) {
+			if(item.networkOfferingHavingVpnService == true) {      
         if (item.vpnenabled) {
           disallowedActions.push('enableVPN');
         } else {
           disallowedActions.push('disableVPN');
         }
-      } else {
+      } else { //item.networkOfferingHavingVpnService == false
         disallowedActions.push('disableVPN');
         disallowedActions.push('enableVPN');
       }
@@ -173,7 +172,7 @@
           }
         });
 
-        var sectionsToShow = ['networks', 'vpc', 'siteToSiteVpn'];
+        var sectionsToShow = ['networks', 'vpc'];
         if(havingSecurityGroupNetwork == true)
           sectionsToShow.push('securityGroups');
 
@@ -193,7 +192,7 @@
               label: 'label.add.guest.network',
 
               preFilter: function(args) {
-                var basicZoneExists = false;
+                var basicZoneExists = true; //Modifying the logic behind displaying the tabs depending on the networktype
                 $.ajax({
                   url: createURL("listZones"),
                   dataType: "json",
@@ -202,8 +201,8 @@
                     if(json.listzonesresponse.zone != null && json.listzonesresponse.zone.length > 0) {
                       zoneObjs = json.listzonesresponse.zone;
                       $(zoneObjs).each(function() {
-                        if(this.networktype == "Basic") {
-                          basicZoneExists = true;
+                        if(this.networktype == "Advanced") {
+                          basicZoneExists = false; // For any occurence of an Advanced zone with any combination of basic zone , the add guest network tab will be displayed
                           return false; //break each loop
                         }
                       });
@@ -345,7 +344,9 @@
               async: false,
               success: function(data) {
                 args.response.success({								  
-                  data: data.listnetworksresponse.network
+                  data: $.grep(data.listnetworksresponse.network, function(item) {
+									  return (item.vpcid == null);
+									})
                 });
               },
               error: function(data) {
@@ -782,15 +783,23 @@
                       context: context,
                       listView: $.extend(true, {}, cloudStack.sections.instances, {
                         listView: {
-                          dataProvider: function(args) {
-                            $.ajax({
+                          dataProvider: function(args) {                           
+														var networkid;
+														if('vpc' in args.context) 
+															networkid = args.context.multiData.tier;														
+														else 
+															networkid = args.context.ipAddresses[0].associatednetworkid;
+														
+														var data = {
+															page: args.page,
+															pageSize: pageSize,
+															networkid: networkid,
+															listAll: true
+														};
+														
+														$.ajax({
                               url: createURL('listVirtualMachines'),
-                              data: {
-                                page: args.page,
-                                pageSize: pageSize,
-                                networkid: args.context.networks[0].id,
-                                listAll: true
-                              },
+                              data: data,
                               dataType: 'json',
                               async: true,
                               success: function(data) {
@@ -983,18 +992,37 @@
           actions: {
             add: {
               label: 'label.acquire.new.ip',
-              addRow: 'true',
-              action: function(args) {
-                var apiCmd = "associateIpAddress";
-                if(args.context.networks[0].type == "Shared" && !args.context.projects)
-                  apiCmd += "&domainid=" + g_domainid + "&account=" + g_account;
+              addRow: 'true',			              
+              messages: {   
+                confirm: function(args) {
+                  return 'message.acquire.new.ip';
+                },							
+                notification: function(args) {
+                  return 'label.acquire.new.ip';
+                }
+              },	
+              action: function(args) {                
+								var dataObj = {};											
+								if('vpc' in args.context) { //from VPC section
+								  $.extend(dataObj, {
+									  vpcid: args.context.vpc[0].id
+									});
+								}
+								else if('networks' in args.context) { //from Guest Network section
+								  $.extend(dataObj, {
+									  networkid: args.context.networks[0].id
+									});									
+									
+									if(args.context.networks[0].type == "Shared" && !args.context.projects) {
+										$.extend(dataObj, {
+											domainid: g_domainid,
+											account: g_account
+										});
+									}									
+								}			
                 $.ajax({
-                  url: createURL(apiCmd),
-                  data: {
-                    networkId: args.context.networks[0].id
-                  },
-                  dataType: 'json',
-                  async: true,
+                  url: createURL('associateIpAddress'),
+                  data: dataObj,   
                   success: function(data) {
                     args.response.success({
                       _custom: {
@@ -1016,15 +1044,6 @@
                     args.response.error(parseXMLHttpResponse(json));
                   }
                 });
-              },
-
-              messages: {
-                confirm: function(args) {
-                  return 'message.acquire.new.ip';
-                },
-                notification: function(args) {
-                  return 'label.acquire.new.ip';
-                }
               },
 
               notification: {
@@ -1065,6 +1084,10 @@
                 }
               }
             }
+											
+						if("vpc" in args.context) 
+						  array1.push("&vpcid=" + args.context.vpc[0].id);						
+						
             $.ajax({
               url: createURL("listPublicIpAddresses&listAll=true&page=" + args.page + "&pagesize=" + pageSize + array1.join("")),
               data: data,
@@ -1226,19 +1249,55 @@
               },
               enableStaticNAT: {
                 label: 'label.action.enable.static.NAT',
+                
                 action: {
                   noAdd: true,
-                  custom: cloudStack.uiCustom.enableStaticNAT({
+                  custom: cloudStack.uiCustom.enableStaticNAT({                    
+                    tierSelect: function(args) {
+											if ('vpc' in args.context) { //from VPC section
+                        args.$tierSelect.show(); //show tier dropdown
+												
+												$.ajax({ //populate tier dropdown
+													url: createURL("listNetworks"),															
+													data: {
+														vpcid: args.context.vpc[0].id,
+														listAll: true
+													},															
+													success: function(json) {					  
+														var networks = json.listnetworksresponse.network;	
+														var items = [];
+														$(networks).each(function(){																  
+															items.push({id: this.id, description: this.displaytext});
+														});
+														args.response.success({ data: items });																
+													}
+												});	
+                      }
+											else { //from Guest Network section
+											   args.$tierSelect.hide(); 
+											}
+                    },
+
                     listView: $.extend(true, {}, cloudStack.sections.instances, {
                       listView: {
                         dataProvider: function(args) {
                           var data = {
                             page: args.page,
-                            pageSize: pageSize,
-                            networkid: args.context.networks[0].id,
+                            pageSize: pageSize,                            
                             listAll: true
                           };
-
+													
+													if('vpc' in args.context) {
+													  $.extend(data, {
+														  vpcid: args.context.vpc[0].id
+														});
+													}
+													else if('networks' in args.context) {
+													  $.extend(data, {
+														  networkid: args.context.networks[0].id
+														});
+													}
+													
                           if (!args.context.projects) {
                             $.extend(data, {
                               account: args.context.ipAddresses[0].account,
@@ -1271,13 +1330,25 @@
                         }
                       }
                     }),
-                    action: function(args) {
+                    action: function(args) {										  
+											var data = {
+												ipaddressid: args.context.ipAddresses[0].id,
+												virtualmachineid: args.context.instances[0].id
+											};
+											
+											if('vpc' in args.context) {
+											  if(args.tierID == null) {
+												  args.response.error('Tier is required');
+												  return;
+												}											
+											  $.extend(data, {
+												  networkid: args.tierID
+												});
+											}
+										
                       $.ajax({
                         url: createURL('enableStaticNat'),
-                        data: {
-                          ipaddressid: args.context.ipAddresses[0].id,
-                          virtualmachineid: args.context.instances[0].id
-                        },
+                        data: data,
                         dataType: 'json',
                         async: true,
                         success: function(data) {
@@ -1463,40 +1534,54 @@
                     async: true,
                     success: function(json) {
                       var ipObj = items[0];	
-											$.ajax({
-												url: createURL('listNetworkOfferings'),
-												data: {
-													id: args.context.networks[0].networkofferingid
-												},
-												dataType: 'json',
-												async: true,
-												success: function(json) {		
-													var networkOfferingObj = json.listnetworkofferingsresponse.networkoffering[0];
-													ipObj.networkOfferingConserveMode= networkOfferingObj.conservemode; 
-																									
-													// Get VPN data
-													$.ajax({
-														url: createURL('listRemoteAccessVpns'),
-														data: {
-															listAll: true,
-															publicipid: ipObj.id
-														},
-														dataType: 'json',
-														async: true,
-														success: function(vpnResponse) {
-															var isVPNEnabled = vpnResponse.listremoteaccessvpnsresponse.count;
-															if (isVPNEnabled) {
-																ipObj.vpnenabled = true;
-																ipObj.remoteaccessvpn = vpnResponse.listremoteaccessvpnsresponse.remoteaccessvpn[0];
-															};
-															args.response.success({
-																actionFilter: actionFilters.ipAddress,
-																data: ipObj
-															});
-														}
-													});													
-												}
-											});					
+											
+											if('networks' in args.context) { //from Guest Network section		
+											  //get ipObj.networkOfferingConserveMode and ipObj.networkOfferingHavingVpnService from guest network's network offering
+												$.ajax({
+													url: createURL('listNetworkOfferings'), 
+													data: {
+														id: args.context.networks[0].networkofferingid  
+													},													
+													async: false,
+													success: function(json) {		
+														var networkOfferingObj = json.listnetworkofferingsresponse.networkoffering[0];
+														ipObj.networkOfferingConserveMode = networkOfferingObj.conservemode; 
+																												
+														$(networkOfferingObj.service).each(function(){
+															var thisService = this;
+															if(thisService.name == "Vpn")
+																ipObj.networkOfferingHavingVpnService = true;                          
+														});
+																												
+														if(ipObj.networkOfferingHavingVpnService == true) {														 
+															$.ajax({
+																url: createURL('listRemoteAccessVpns'), 
+																data: {
+																	listAll: true,
+																	publicipid: ipObj.id
+																},												
+																async: false,
+																success: function(vpnResponse) {
+																	var isVPNEnabled = vpnResponse.listremoteaccessvpnsresponse.count;
+																	if (isVPNEnabled) {
+																		ipObj.vpnenabled = true;
+																		ipObj.remoteaccessvpn = vpnResponse.listremoteaccessvpnsresponse.remoteaccessvpn[0];
+																	};													
+																}
+															});																	
+														}																
+													}
+												});														
+                      }											
+											else { //from VPC section 											  
+											  ipObj.networkOfferingConserveMode = false; //conserve mode of IP in VPC is always off, so hardcode it as false											
+												ipObj.networkOfferingHavingVpnService = false; //VPN is not supported in IP in VPC, so hardcode it as false													
+											}			
+
+                      args.response.success({
+												actionFilter: actionFilters.ipAddress,
+												data: ipObj
+											});													
                     },
                     error: function(data) {
                       args.response.error(parseXMLHttpResponse(data));
@@ -1513,33 +1598,74 @@
                     if (args.context.ipAddresses[0].isstaticnat)
                       disallowedActions.push("nonStaticNATChart");  //tell ipRules widget to show staticNAT chart instead of non-staticNAT chart.
 
-
-                    var networkOfferingHavingFirewallService = false;
-                    var networkOfferingHavingPortForwardingService = false;
-                    var networkOfferingHavingLbService = false;
-                    $.ajax({
-                      url: createURL("listNetworkOfferings&id=" + args.context.networks[0].networkofferingid),
-                      dataType: "json",
-                      async: false,
-                      success: function(json) {
-                        var networkoffering = json.listnetworkofferingsresponse.networkoffering[0];
-                        $(networkoffering.service).each(function(){
-                          var thisService = this;
-                          if(thisService.name == "Firewall")
-                            networkOfferingHavingFirewallService = true;
-                          if(thisService.name == "PortForwarding")
-                            networkOfferingHavingPortForwardingService = true;
-                          if(thisService.name == "Lb")
-                            networkOfferingHavingLbService = true;
-                        });
-                      }
-                    });
+                    var havingFirewallService = false;
+                    var havingPortForwardingService = false;
+                    var havingLbService = false;
+										var havingVpnService = false;		
+										
+                    if('networks' in args.context) { //from Guest Network section
+											$.ajax({
+												url: createURL("listNetworkOfferings&id=" + args.context.networks[0].networkofferingid),
+												dataType: "json",
+												async: false,
+												success: function(json) {
+													var networkoffering = json.listnetworkofferingsresponse.networkoffering[0];
+													$(networkoffering.service).each(function(){
+														var thisService = this;
+														if(thisService.name == "Firewall")
+															havingFirewallService = true;
+														if(thisService.name == "PortForwarding")
+															havingPortForwardingService = true;
+														if(thisService.name == "Lb")
+															havingLbService = true;
+														if(thisService.name == "Vpn")
+															havingVpnService = true;
+													});
+												}
+											});
+										}
+										else { //from VPC section
+										  havingFirewallService = false;  //firewall is not supported in IP from VPC section (because ACL has already supported in tier from VPC section)
+											havingVpnService = false; //VPN is not supported in IP from VPC section
+										
+										  if(args.context.ipAddresses[0].associatednetworkid == null) { //IP is not associated with any tier yet												
+												havingPortForwardingService = true;
+												havingLbService = true;												
+											}
+											else { //IP is associated with a tier
+											  $.ajax({
+												  url: createURL("listNetworks&id=" + args.context.ipAddresses[0].associatednetworkid),
+													async: false,
+													success: function(json) {													  
+													  var networkObj = json.listnetworksresponse.network[0];													 
+														$.ajax({
+															url: createURL("listNetworkOfferings&id=" + networkObj.networkofferingid),													
+															async: false,
+															success: function(json) {
+																var networkoffering = json.listnetworkofferingsresponse.networkoffering[0];
+																$(networkoffering.service).each(function(){
+																	var thisService = this;																	
+																	if(thisService.name == "PortForwarding")
+																		havingPortForwardingService = true;
+																	if(thisService.name == "Lb")
+																		havingLbService = true;																	
+																});
+															}
+														});																										  
+													}												
+												});
+											}
+										}
 																				
 										if(args.context.ipAddresses[0].networkOfferingConserveMode == false) {			 
 											/*
 											(1) If IP is SourceNat, no StaticNat/VPN/PortForwarding/LoadBalancer can be enabled/added. 
 											*/
 											if (args.context.ipAddresses[0].issourcenat){
+											  if(havingFirewallService == false) { //firewall is not supported in IP from VPC section (because ACL has already supported in tier from VPC section)
+													disallowedActions.push("firewall");
+												}
+											
 											  disallowedActions.push("portForwarding");			
 											  disallowedActions.push("loadBalancing");											  									
 											}
@@ -1547,16 +1673,23 @@
 											/*
 											(2) If IP is non-SourceNat, show StaticNat/VPN/PortForwarding/LoadBalancer at first.
 											1. Once StaticNat is enabled, hide VPN/PortForwarding/LoadBalancer.
-											2. Once VPN is enabled, hide StaticNat/PortForwarding/LoadBalancer.
+											2. If VPN service is supported (i.e. IP comes from Guest Network section, not from VPC section), once VPN is enabled, hide StaticNat/PortForwarding/LoadBalancer.
 											3. Once a PortForwarding rule is added, hide StaticNat/VPN/LoadBalancer.
 											4. Once a LoadBalancer rule is added, hide StaticNat/VPN/PortForwarding.
 											*/
-											else { //args.context.ipAddresses[0].issourcenat == false				   
+											else { //args.context.ipAddresses[0].issourcenat == false		 
+												if(havingFirewallService == false)
+													disallowedActions.push("firewall");
+												if(havingPortForwardingService == false)
+													disallowedActions.push("portForwarding");
+												if(havingLbService == false)
+													disallowedActions.push("loadBalancing");
+											
 												if (args.context.ipAddresses[0].isstaticnat) { //1. Once StaticNat is enabled, hide VPN/PortForwarding/LoadBalancer.
 												  disallowedActions.push("portForwarding");
 													disallowedActions.push("loadBalancing");
 												}
-												if (args.context.ipAddresses[0].vpnenabled) { //2. Once VPN is enabled, hide StaticNat/PortForwarding/LoadBalancer.
+												if (havingVpnService && args.context.ipAddresses[0].vpnenabled) { //2. If VPN service is supported (i.e. IP comes from Guest Network section, not from VPC section), once VPN is enabled, hide StaticNat/PortForwarding/LoadBalancer.
 													disallowedActions.push("portForwarding");
 													disallowedActions.push("loadBalancing"); 
 												}
@@ -1597,14 +1730,7 @@
 												});															
 											}						
 										}
-																				
-                    if(networkOfferingHavingFirewallService == false)
-                      disallowedActions.push("firewall");
-                    if(networkOfferingHavingPortForwardingService == false)
-                      disallowedActions.push("portForwarding");
-                    if(networkOfferingHavingLbService == false)
-                      disallowedActions.push("loadBalancing");
-
+										
                     return disallowedActions;
                   },
 
@@ -1901,10 +2027,17 @@
                         dataProvider: function(args) {
                           var itemData = $.isArray(args.context.multiRule) && args.context.multiRule[0]['_itemData'] ?
                             args.context.multiRule[0]['_itemData'] : [];
+																											                    
+													var networkid;
+													if('vpc' in args.context) 
+													  networkid = args.context.multiData.tier;													
+													else 
+													  networkid = args.context.ipAddresses[0].associatednetworkid;			
+													
                           var data = {
                             page: args.page,
                             pageSize: pageSize,
-                            networkid: args.context.ipAddresses[0].associatednetworkid,
+                            networkid: networkid,
                             listAll: true
                           };
 
@@ -1945,6 +2078,30 @@
                         }
                       }
                     }),
+                    headerFields: {
+                      tier: {
+                        label: 'Tier',
+                        select: function(args) {	
+													if('vpc' in args.context) {													
+														$.ajax({
+															url: createURL("listNetworks"),															
+															data: {
+																vpcid: args.context.vpc[0].id,
+																listAll: true
+															},															
+															success: function(json) {					  
+																var networks = json.listnetworksresponse.network;	
+																var items = [];
+																$(networks).each(function(){																  
+																	items.push({id: this.id, description: this.displaytext});
+																});
+																args.response.success({ data: items });																
+															}
+														});	 
+													}																								
+                        }
+                      }
+                    },
                     multipleAdd: true,
                     fields: {
                       'name': { edit: true, label: 'label.name', isEditable: true },
@@ -1963,6 +2120,7 @@
                           });
                         }
                       },
+
                       'sticky': {
                         label: 'label.stickiness',
                         custom: {
@@ -1977,28 +2135,33 @@
                     },
                     add: {
                       label: 'label.add.vms',
-                      action: function(args) {
-                        var openFirewall = false;
+                      action: function(args) {  											  
+												var networkid;												
+											  if('vpc' in args.context) { //from VPC section
+												  if(args.data.tier == null) {													  
+														args.response.error('Tier is required');
+													  return;
+													}												
+												  networkid = args.data.tier;		
+												}
+												else if('networks' in args.context) {	//from Guest Network section										  
+													networkid = args.context.networks[0].id;													
+												}											
                         var data = {
                           algorithm: args.data.algorithm,
                           name: args.data.name,
                           privateport: args.data.privateport,
-                          publicport: args.data.publicport
+                          publicport: args.data.publicport,
+													openfirewall: false,	
+                          networkid: networkid,													
+													publicipid: args.context.ipAddresses[0].id
                         };
-                        var stickyData = $.extend(true, {}, args.data.sticky);
-
-                        var apiCmd = "createLoadBalancerRule";
-                        //if(args.context.networks[0].type == "Shared")
-                          //apiCmd += "&domainid=" + g_domainid + "&account=" + g_account;
-                        //else //args.context.networks[0].type == "Isolated"
-                          apiCmd += "&publicipid=" + args.context.ipAddresses[0].id;
+											
+                        var stickyData = $.extend(true, {}, args.data.sticky);                     
 
                         $.ajax({
-                          url: createURL(apiCmd),
-                          data: $.extend(data, {
-                            openfirewall: openFirewall,
-                            networkid: args.context.networks[0].id
-                          }),
+                          url: createURL('createLoadBalancerRule'),
+                          data: data,
                           dataType: 'json',
                           async: true,
                           success: function(data) {
@@ -2174,7 +2337,9 @@
                         }
                       }
                     },
-                    dataProvider: function(args) {   
+                    dataProvider: function(args) {
+                      var $multi = args.$multi;
+
                       $.ajax({
                         url: createURL('listLoadBalancerRules'),
 												data: {
@@ -2269,19 +2434,63 @@
                           });
                         }
                       });
+
+                      // Check if tiers are present; hide/show header drop-down                     
+											var $headerFields = $multi.find('.header-fields');													
+											if ('vpc' in args.context) {
+												if(args.context.ipAddresses[0].associatednetworkid == null) {
+													$headerFields.show();
+												}
+												else {
+													$headerFields.hide();
+												}
+											} 
+											else if('networks' in args.context){
+												$headerFields.hide();
+											}													
                     }
                   },
 
                   // Port forwarding rules
                   portForwarding: {
+                    headerFields: {
+                      tier: {
+                        label: 'Tier',
+                        select: function(args) {												  
+													if('vpc' in args.context) {													
+														$.ajax({
+															url: createURL("listNetworks"),															
+															data: {
+																vpcid: args.context.vpc[0].id,
+																listAll: true
+															},															
+															success: function(json) {					  
+																var networks = json.listnetworksresponse.network;	
+																var items = [];
+																$(networks).each(function(){																  
+																	items.push({id: this.id, description: this.displaytext});
+																});
+																args.response.success({ data: items });																
+															}
+														});	 
+													}	
+                        }
+                      }
+                    },
                     listView: $.extend(true, {}, cloudStack.sections.instances, {
                       listView: {
                         dataProvider: function(args) {
-                          var data = {
+                          var networkid;
+													if('vpc' in args.context) 
+													  networkid = args.context.multiData.tier;													
+													else 
+													  networkid = args.context.ipAddresses[0].associatednetworkid;													
+													
+													var data = {
                             page: args.page,
                             pageSize: pageSize,
                             listAll: true,
-                            networkid: args.context.ipAddresses[0].associatednetworkid
+                            networkid: networkid
                           };
 
                           if (!args.context.projects) {
@@ -2347,19 +2556,25 @@
                     },
                     add: {
                       label: 'label.add.vm',
-                      action: function(args) {
-                        var openFirewall = false;
-
+                      action: function(args) {                        
+												var data = $.extend(args.data, {
+													openfirewall: false,
+													ipaddressid: args.context.ipAddresses[0].id,
+													virtualmachineid: args.itemData[0].id
+												});									
+												if('vpc' in args.context) { //from VPC section
+												  if(args.data.tier == null) {													  
+														args.response.error('Tier is required');
+													  return;
+													}	
+                          $.extend(data, {
+                            networkid: args.data.tier		
+                          });	
+												}
+												
                         $.ajax({
                           url: createURL('createPortForwardingRule'),
-
-                          data: $.extend(args.data, {
-                            openfirewall: openFirewall,
-                            ipaddressid: args.context.ipAddresses[0].id,
-                            virtualmachineid: args.itemData[0].id
-                          }),
-                          dataType: 'json',
-                          async: true,
+                          data: data,                        
                           success: function(data) {
                             args.response.success({
                               _custom: {
@@ -2409,6 +2624,8 @@
                       }
                     },
                     dataProvider: function(args) {
+                      var $multi = args.$multi;
+                      
                       $.ajax({
                         url: createURL('listPortForwardingRules'),
                         data: {
@@ -2460,6 +2677,20 @@
                               }
                             });
                           });
+                 													
+													// Check if tiers are present; hide/show header drop-down                     
+													var $headerFields = $multi.find('.header-fields');													
+													if ('vpc' in args.context) {
+													  if(args.context.ipAddresses[0].associatednetworkid == null) {
+														  $headerFields.show();
+														}
+														else {
+														  $headerFields.hide();
+														}
+													} 
+													else if('networks' in args.context){
+														$headerFields.hide();
+													}													
                         },
                         error: function(data) {
                           args.response.error(parseXMLHttpResponse(data));
@@ -3140,7 +3371,12 @@
           },
           actions: {
             add: {
-              label: 'Add VPC',
+              label: 'Add VPC',							
+							messages: {								
+								notification: function(args) {
+									return 'Add VPC';
+								}
+							},
               createForm: {
                 title: 'Add VPC',
 								messages: {
@@ -3166,9 +3402,12 @@
                         url: createURL('listZones'),
                         data: data,
                         success: function(json) {
-                          var zones = json.listzonesresponse.zone;
+                          var zones = json.listzonesresponse.zone;													
+													var advZones = $.grep(zones, function(zone) {													  
+													  return zone.networktype == 'Advanced';
+													});		
                           args.response.success({
-                            data: $.map(zones, function(zone) {
+                            data: $.map(advZones, function(zone) {
                               return {
                                 id: zone.id,
                                 description: zone.name
@@ -3231,10 +3470,7 @@
                     );
                   }
                 });								
-              },
-              notification: { 
-							  poll: pollAsyncJobResult
-							}							
+              }					
             },
             editVpc: {
               label: 'Edit VPC',
@@ -3280,463 +3516,7 @@
             }
           }								
         }
-      },
-			
-			//site-to-site VPN (begin)
-			siteToSiteVpn: {
-        type: 'select',
-        title: 'site-to-site VPN',
-        listView: {
-          id: 'siteToSiteVpn',
-          label: 'site-to-site VPN',
-          fields: {			
-            publicip: { label: 'label.ip.address' },				
-					  gateway: { label: 'label.gateway' },
-						cidrlist: { label: 'CIDR list' },
-						ipsecpsk: { label: 'IPsec Preshared-Key' },
-						ikepolicy: { label: 'IKE policy' },
-						esppolicy: { label: 'ESP policy' }								
-          },
-          dataProvider: function(args) {					  
-						var array1 = [];  
-						if(args.filterBy != null) {          
-							if(args.filterBy.search != null && args.filterBy.search.by != null && args.filterBy.search.value != null) {
-								switch(args.filterBy.search.by) {
-								case "name":
-									if(args.filterBy.search.value.length > 0)
-										array1.push("&keyword=" + args.filterBy.search.value);
-									break;
-								}
-							}
-						}						
-            $.ajax({
-              url: createURL("listVpnConnections&listAll=true&page=" + args.page + "&pagesize=" + pageSize + array1.join("")),
-              dataType: "json",
-              async: true,
-              success: function(json) {							
-                var items = json.listvpnconnectionsresponse.vpnconnection;
-                args.response.success({data:items});
-              }
-            });
-          },
-					
-					actions: {
-            add: {
-              label: 'add site-to-site VPN',
-              messages: {                
-                notification: function(args) {
-                  return 'add site-to-site VPN';
-                }
-              },
-              createForm: {
-                title: 'add site-to-site VPN',
-                fields: {
-								  publicipid: {
-									  label: 'label.ip.address',
-										select: function(args) {										  
-											$.ajax({
-												url: createURL('listPublicIpAddresses'),												
-												dataType: 'json',
-												async: true,
-												success: function(json) {				
-                          var items = [];												
-													var objs = json.listpublicipaddressesresponse.publicipaddress;
-													if(objs != null && objs.length > 0) {
-													  for(var i = 0; i < objs.length; i++) {
-														  items.push({id: objs[i].id, description: objs[i].ipaddress});
-														}
-													}													
-													args.response.success({data: items});													
-												}
-											});											
-										},
-										validation: { required: true }
-									},
-									gateway: { 
-									  label: 'label.gateway',
-										validation: { required: true }
-									}, 
-									cidrlist: { 
-									  label: 'CIDR list',
-										validation: { required: true }
-									},
-									ipsecpsk: { 
-									  label: 'IPsec Preshared-Key',
-										validation: { required: true }
-									},
-								  ikepolicy: { 
-									  label: 'IKE policy',
-										select: function(args) {
-										  var items = [];
-                      items.push({id: '3des-md5', description: '3des-md5'});
-                      items.push({id: 'aes-md5', description: 'aes-md5'});
-											items.push({id: 'aes128-md5', description: 'aes128-md5'});
-											items.push({id: 'des-md5', description: 'des-md5'});											
-											items.push({id: '3des-sha1', description: '3des-sha1'});
-											items.push({id: 'aes-sha1', description: 'aes-sha1'});
-											items.push({id: 'aes128-sha1', description: 'aes128-sha1'});
-											items.push({id: 'des-sha1', description: 'des-sha1'});
-                      args.response.success({data: items});
-										}
-									},
-								  esppolicy: { 
-									  label: 'ESP policy',
-										select: function(args) {
-										  var items = [];
-                      items.push({id: '3des-md5', description: '3des-md5'});
-                      items.push({id: 'aes-md5', description: 'aes-md5'});
-											items.push({id: 'aes128-md5', description: 'aes128-md5'});
-											items.push({id: 'des-md5', description: 'des-md5'});											
-											items.push({id: '3des-sha1', description: '3des-sha1'});
-											items.push({id: 'aes-sha1', description: 'aes-sha1'});
-											items.push({id: 'aes128-sha1', description: 'aes128-sha1'});
-											items.push({id: 'des-sha1', description: 'des-sha1'});
-                      args.response.success({data: items});
-										}
-									},
-								  lifetime: { 
-									  label: 'Lifetime (second)',
-                    defaultValue: '86400',
-										validation: { required: false, number: true }
-									}		
-                }
-              },
-              action: function(args) {							  				 
-								$.ajax({
-								  url: createURL('createVpnGateway'),
-									data: {
-									  publicipid: args.data.publicipid
-									},
-									dataType: 'json',									
-									success: function(json) {
-										var jid = json.createvpngatewayresponse.jobid;                          
-										var createvpngatewayIntervalID = setInterval(function() { 																
-											$.ajax({
-												url: createURL("queryAsyncJobResult&jobid=" + jid),
-												dataType: "json",
-												success: function(json) {													
-													var result = json.queryasyncjobresultresponse;												
-													if (result.jobstatus == 0) {
-														return; //Job has not completed
-													}
-													else {                                      
-														clearInterval(createvpngatewayIntervalID); 														
-														if (result.jobstatus == 1) {															
-															var obj = result.jobresult.vpngateway;
-															var vpngatewayid = obj.id;	
-                            
-															$.ajax({
-																url: createURL('createVpnCustomerGateway'),
-																data: {
-																	gateway: args.data.gateway,
-																	cidrlist: args.data.cidrlist,
-																	ipsecpsk: args.data.ipsecpsk,
-																	ikepolicy: args.data.ikepolicy,
-																	esppolicy: args.data.esppolicy,
-																	lifetime: args.data.lifetime
-																},
-																dataType: 'json',									
-																success: function(json) {
-																	var jid = json.createvpncustomergatewayresponse.jobid;                          
-																	var createvpncustomergatewayIntervalID = setInterval(function() { 																
-																		$.ajax({
-																			url: createURL("queryAsyncJobResult&jobid=" + jid),
-																			dataType: "json",
-																			success: function(json) {													
-																				var result = json.queryasyncjobresultresponse;	
-																				if (result.jobstatus == 0) {
-																					return; //Job has not completed
-																				}
-																				else {                                      
-																					clearInterval(createvpncustomergatewayIntervalID); 														
-																					if (result.jobstatus == 1) {															
-																						var obj = result.jobresult.vpncustomergateway;
-																						var vpncustomergatewayid = obj.id;	
-                                            		
-                                            $.ajax({
-																							url: createURL('createVpnConnection'),
-																							data: {
-																								s2svpngatewayid: vpngatewayid,
-																								s2scustomergatewayid: vpncustomergatewayid
-																							},
-																							dataType: 'json',									
-																							success: function(json) {
-																								var jid = json.createvpnconnectionresponse.jobid;                          
-																								var createvpnconnectionIntervalID = setInterval(function() { 																
-																									$.ajax({
-																										url: createURL("queryAsyncJobResult&jobid=" + jid),
-																										dataType: "json",
-																										success: function(json) {													
-																											var result = json.queryasyncjobresultresponse;	
-																											if (result.jobstatus == 0) {
-																												return; //Job has not completed
-																											}
-																											else {                                      
-																												clearInterval(createvpnconnectionIntervalID); 
-																																																						
-																												if (result.jobstatus == 1) {																														
-																												  //remove loading image on table row																													
-																													var $listviewTable = $("div.list-view  div.data-table table.body tbody");														
-																													var $tr1 = $listviewTable.find("tr.loading").removeClass("loading");
-																													$tr1.find("td div.loading").removeClass("loading");
-
-																													var item = result.jobresult.vpnconnection;	                                                         	
-                                                          $tr1.find("td.publicip span").text(item.publicip);																													
-																													
-                                                          cloudStack.dialog.notice({ message: "site-to-site VPN is created successfully." });		
-																												}
-																												else if (result.jobstatus == 2) {
-																												  $.removeTableRowInAction();
-															                            cloudStack.dialog.notice({ message: _s(result.jobresult.errortext) });																														
-																												}
-																											}
-																										},
-																										error: function(XMLHttpResponse) {
-																											$.removeTableRowInAction();
-													                            cloudStack.dialog.notice({ message: parseXMLHttpResponse(XMLHttpResponse) });	
-																										}
-																									});                              
-																								}, 3000); 																
-																							}
-															              });																		
-																					}
-																					else if (result.jobstatus == 2) {
-																					  $.removeTableRowInAction();
-															              cloudStack.dialog.notice({ message: _s(result.jobresult.errortext) });																									
-																					}
-																				}
-																			},
-																			error: function(XMLHttpResponse) {
-																			  $.removeTableRowInAction();
-													              cloudStack.dialog.notice({ message: parseXMLHttpResponse(XMLHttpResponse) });																				
-																			}
-																		});                              
-																	}, 3000); 																
-																}
-															});									
-														}
-														else if (result.jobstatus == 2) {		
-															$.removeTableRowInAction();
-															cloudStack.dialog.notice({ message: _s(result.jobresult.errortext) });																
-														}
-													}
-												},
-												error: function(XMLHttpResponse) {													
-													$.removeTableRowInAction();
-													cloudStack.dialog.notice({ message: parseXMLHttpResponse(XMLHttpResponse) });	
-												}
-											});                              
-										}, 3000); 																
-									}
-								});							  	
-              }              
-            }
-          },
-					
-					detailView: {
-            name: 'label.details',
-            tabs: {
-              details: {
-                title: 'label.details',
-                fields: [
-                  {                   
-										id: { label: 'label.id' },
-										
-										//s2svpngatewayid: { label: 'VPN gateway ID' },
-										publicip: { label: 'label.ip.address' },
-										
-										//s2scustomergatewayid: { label: 'Customer gateway ID' }, 
-										gateway: { label: 'label.gateway' },
-										cidrlist: { label: 'CIDR list' },
-										ipsecpsk: { label: 'IPsec Preshared-Key' },
-										ikepolicy: { label: 'IKE policy' },
-										esppolicy: { label: 'ESP policy' },
-										lifetime: { label: 'Lifetime (second)' },
-																			 
-										created: { label: 'label.date', converter: cloudStack.converters.toLocalDate }										
-                  }
-                ],
-                dataProvider: function(args) {								  
-									$.ajax({
-										url: createURL("listVpnConnections&id=" + args.context.siteToSiteVpn[0].id),
-										dataType: "json",
-										async: true,
-										success: function(json) {							
-											var item = json.listvpnconnectionsresponse.vpnconnection[0];
-											args.response.success({data: item});
-										}
-									});									
-								}
-              }
-            },
-            actions: {                 
-							restart: {
-                label: 'Reset VPN connection',
-                messages: {
-                  confirm: function(args) {
-                    return 'Please confirm that you want to reset VPN connection' ;
-                  },
-                  notification: function(args) {
-                    return 'Reset VPN connection';
-                  }
-                },
-                action: function(args) {
-                  $.ajax({
-                    url: createURL("resetVpnConnection"),										
-										data: {
-											id: args.context.siteToSiteVpn[0].id
-										},										
-                    dataType: "json",
-                    async: true,
-                    success: function(json) {
-                      var jid = json.resetvpnconnectionresponse.jobid;
-                      args.response.success(
-                        {_custom:
-                          {
-												    jobId: jid,
-													  getUpdatedItem: function(json) {														  
-														  return json.queryasyncjobresultresponse.jobresult.vpnconnection;
-													  }									 
-                          }
-                        }
-                      );
-                    }
-                  });
-                },
-                notification: {
-                  poll: pollAsyncJobResult
-                }
-              },
-													
-							remove: {
-								label: 'delete site-to-site VPN',
-								messages: {
-									confirm: function(args) {
-										return 'Please confirm that you want to delete this site-to-site VPN';
-									},
-									notification: function(args) {
-										return 'delete site-to-site VPN';
-									}
-								},
-								action: function(args) {
-									$.ajax({
-										url: createURL("deleteVpnConnection"),
-										dataType: "json",
-										data: {
-											id: args.context.siteToSiteVpn[0].id
-										},
-										async: true,
-										success: function(json) {		
-											var jid = json.deletevpnconnectionresponse.jobid;										
-											var deleteVpnConnectionIntervalID = setInterval(function() { 	
-												$.ajax({
-													url: createURL("queryAsyncJobResult&jobId=" + jid),
-													dataType: "json",
-													success: function(json) {
-														var result = json.queryasyncjobresultresponse;
-														if (result.jobstatus == 0) {
-															return; //Job has not completed
-														}
-														else {
-															clearInterval(deleteVpnConnectionIntervalID); 
-															if (result.jobstatus == 1) {	
-																$.ajax({
-																	url: createURL("deleteVpnGateway"),
-																	dataType: "json",
-																	data: {
-																		id: args.context.siteToSiteVpn[0].s2svpngatewayid
-																	},
-																	async: true,
-																	success: function(json) {		
-																		var jid = json.deletevpngatewayresponse.jobid;							
-																		var deleteVpnGatewayIntervalID = setInterval(function() { 	
-																			$.ajax({
-																				url: createURL("queryAsyncJobResult&jobId=" + jid),
-																				dataType: "json",
-																				success: function(json) {
-																					var result = json.queryasyncjobresultresponse;
-																					if (result.jobstatus == 0) {
-																						return; //Job has not completed
-																					}
-																					else {
-																						clearInterval(deleteVpnGatewayIntervalID); 
-																						if (result.jobstatus == 1) {					
-																							$.ajax({
-																								url: createURL("deleteVpnCustomerGateway"),
-																								dataType: "json",
-																								data: {
-																									id: args.context.siteToSiteVpn[0].s2scustomergatewayid
-																								},
-																								async: true,
-																								success: function(json) {	
-																									var jid = json.deletecustomergatewayresponse.jobid;			
-																									var deleteVpnCustomerGatewayIntervalID = setInterval(function() { 	
-																										$.ajax({
-																											url: createURL("queryAsyncJobResult&jobId=" + jid),
-																											dataType: "json",
-																											success: function(json) {
-																												var result = json.queryasyncjobresultresponse;
-																												if (result.jobstatus == 0) {
-																													return; //Job has not completed
-																												}
-																												else {
-																													clearInterval(deleteVpnCustomerGatewayIntervalID); 
-																													if (result.jobstatus == 1) {	
-                                                            $("div.detail-view div.loading-overlay").remove();
-                                                            cloudStack.dialog.notice({ message: "site-to-site VPN has been deleted." });																															
-																														$.removeDetailViewAndTableRow();																														
-																													}
-																													else if (result.jobstatus == 2) {
-																													  $("div.detail-view div.loading-overlay").remove();
-                                                            cloudStack.dialog.notice({ message: _s(result.jobresult.errortext) });																										
-																													}
-																												}
-																											},
-																											error: function(XMLHttpResponse) {
-																											  $("div.detail-view div.loading-overlay").remove();
-                                                        cloudStack.dialog.notice({ message: parseXMLHttpResponse(XMLHttpResponse) });																												
-																											}
-																										});
-																									}, 3000);		
-																								}
-																							});																																									
-																						}
-																						else if (result.jobstatus == 2) {
-																							$("div.detail-view div.loading-overlay").remove();
-                                              cloudStack.dialog.notice({ message: _s(result.jobresult.errortext) });	
-																						}
-																					}
-																				},
-																				error: function(XMLHttpResponse) {
-																					$("div.detail-view div.loading-overlay").remove();
-                                          cloudStack.dialog.notice({ message: parseXMLHttpResponse(XMLHttpResponse) });	
-																				}
-																			});
-																		}, 3000);		
-																	}
-																});																												
-															}
-															else if (result.jobstatus == 2) {
-																$("div.detail-view div.loading-overlay").remove();
-                                cloudStack.dialog.notice({ message: _s(result.jobresult.errortext) });	
-															}
-														}
-													},
-													error: function(XMLHttpResponse) {
-														$("div.detail-view div.loading-overlay").remove();
-                            cloudStack.dialog.notice({ message: parseXMLHttpResponse(XMLHttpResponse) });	
-													}
-												});
-											}, 3000);		
-										}
-									});										
-								}								
-							}									
-            }							
-          }
-        }
-      }
-			//site-to-site VPN (end)
+      }			
     }
   };
 		

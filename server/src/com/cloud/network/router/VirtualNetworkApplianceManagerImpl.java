@@ -48,7 +48,6 @@ import com.cloud.agent.api.GetDomRVersionCmd;
 import com.cloud.agent.api.ModifySshKeysCommand;
 import com.cloud.agent.api.NetworkUsageAnswer;
 import com.cloud.agent.api.NetworkUsageCommand;
-import com.cloud.agent.api.RebootAnswer;
 import com.cloud.agent.api.StartupCommand;
 import com.cloud.agent.api.StopAnswer;
 import com.cloud.agent.api.check.CheckSshAnswer;
@@ -63,7 +62,6 @@ import com.cloud.agent.api.routing.SetFirewallRulesCommand;
 import com.cloud.agent.api.routing.SetPortForwardingRulesCommand;
 import com.cloud.agent.api.routing.SetPortForwardingRulesVpcCommand;
 import com.cloud.agent.api.routing.SetStaticNatRulesCommand;
-import com.cloud.agent.api.routing.Site2SiteVpnCfgCommand;
 import com.cloud.agent.api.routing.VmDataCommand;
 import com.cloud.agent.api.routing.VpnUsersCfgCommand;
 import com.cloud.agent.api.to.FirewallRuleTO;
@@ -129,9 +127,6 @@ import com.cloud.network.Networks.TrafficType;
 import com.cloud.network.PhysicalNetworkServiceProvider;
 import com.cloud.network.PublicIpAddress;
 import com.cloud.network.RemoteAccessVpn;
-import com.cloud.network.Site2SiteCustomerGatewayVO;
-import com.cloud.network.Site2SiteVpnConnection;
-import com.cloud.network.Site2SiteVpnGatewayVO;
 import com.cloud.network.SshKeysDistriMonitor;
 import com.cloud.network.VirtualNetworkApplianceService;
 import com.cloud.network.VirtualRouterProvider;
@@ -1262,15 +1257,15 @@ public class VirtualNetworkApplianceManagerImpl implements VirtualNetworkApplian
             //3) deploy virtual router(s)
             int count = routerCount - routers.size();
             for (int i = 0; i < count; i++) {
+                List<Pair<NetworkVO, NicProfile>> networks = createRouterNetworks(owner, isRedundant, plan, guestNetwork,
+                        new Pair<Boolean, PublicIp>(publicNetwork, sourceNatIp));
                 DomainRouterVO router = deployRouter(owner, dest, plan, params, isRedundant, vrProvider, offeringId,
-                        null, sourceNatIp, publicNetwork, guestNetwork, new Pair<Boolean, PublicIp>(publicNetwork, sourceNatIp));
-                //add router to router network map
-                if (!_routerDao.isRouterPartOfGuestNetwork(router.getId(), network.getId())) {
-                    DomainRouterVO routerVO = _routerDao.findById(router.getId());
-                    _routerDao.addRouterToGuestNetwork(routerVO, network);
-                }
+                        null, networks);
+                
+                _routerDao.addRouterToGuestNetwork(router, network);
+                
                 routers.add(router);
-                }
+            }
         } finally {
             if (network != null) {
                 _networkDao.releaseFromLockTable(network.getId());
@@ -1281,7 +1276,7 @@ public class VirtualNetworkApplianceManagerImpl implements VirtualNetworkApplian
 
     protected DomainRouterVO deployRouter(Account owner, DeployDestination dest, DeploymentPlan plan, Map<Param, Object> params,
             boolean isRedundant, VirtualRouterProvider vrProvider, long svcOffId,
-            Long vpcId, PublicIp sourceNatIp, boolean setupPublicNetwork, Network guestNetwork, Pair<Boolean, PublicIp> publicNetwork) throws ConcurrentOperationException, 
+            Long vpcId, List<Pair<NetworkVO, NicProfile>> networks) throws ConcurrentOperationException, 
             InsufficientAddressCapacityException, InsufficientServerCapacityException, InsufficientCapacityException, 
             StorageUnavailableException, ResourceUnavailableException {
         
@@ -1289,15 +1284,10 @@ public class VirtualNetworkApplianceManagerImpl implements VirtualNetworkApplian
         if (s_logger.isDebugEnabled()) {
             s_logger.debug("Creating the router " + id + " in datacenter "  + dest.getDataCenter());
         }
-        
-        //1) Create router networks
-        List<Pair<NetworkVO, NicProfile>> networks = createRouterNetworks(owner, isRedundant, plan, guestNetwork,
-                publicNetwork);
 
-       
         ServiceOfferingVO routerOffering = _serviceOfferingDao.findById(svcOffId);
 
-        //2) Router is the network element, we don't know the hypervisor type yet.
+        // Router is the network element, we don't know the hypervisor type yet.
         //Try to allocate the domR twice using diff hypervisors, and when failed both times, throw the exception up
         List<HypervisorType> supportedHypervisors = new ArrayList<HypervisorType>();
         HypervisorType defaults = _resourceMgr.getDefaultHypervisor(dest.getDataCenter().getId());
@@ -1391,7 +1381,7 @@ public class VirtualNetworkApplianceManagerImpl implements VirtualNetworkApplian
         boolean setupPublicNetwork = false;
         if (publicNetwork != null) {
             setupPublicNetwork = publicNetwork.first();
-            }
+        }
         
         //Form networks
         List<Pair<NetworkVO, NicProfile>> networks = new ArrayList<Pair<NetworkVO, NicProfile>>(3);
@@ -1427,6 +1417,7 @@ public class VirtualNetworkApplianceManagerImpl implements VirtualNetworkApplian
             } else {
                 gatewayNic.setDefaultNic(true);
             }
+            
             networks.add(new Pair<NetworkVO, NicProfile>((NetworkVO) guestNetwork, gatewayNic));
             hasGuestNetwork = true;
         }
@@ -1461,7 +1452,6 @@ public class VirtualNetworkApplianceManagerImpl implements VirtualNetworkApplian
             networks.add(new Pair<NetworkVO, NicProfile>(publicNetworks.get(0), defaultNic));
         }
 
-        
         return networks;
     }
 
@@ -1722,7 +1712,9 @@ public class VirtualNetworkApplianceManagerImpl implements VirtualNetworkApplian
          * to return DNS server rather than 
          * virtual router itself. */
         if (dnsProvided || dhcpProvided) {
-            buf.append(" dns1=").append(defaultDns1);
+            if (defaultDns1 != null) {
+                buf.append(" dns1=").append(defaultDns1);
+            }
             if (defaultDns2 != null) {
                 buf.append(" dns2=").append(defaultDns2);
             }
@@ -2045,15 +2037,29 @@ public class VirtualNetworkApplianceManagerImpl implements VirtualNetworkApplian
         }
     }
 
-    protected ArrayList<? extends PublicIpAddress> getPublicIpsToApply(VirtualRouter router, Provider provider, Long guestNetworkId) {
+    protected ArrayList<? extends PublicIpAddress> getPublicIpsToApply(VirtualRouter router, Provider provider, 
+            Long guestNetworkId, com.cloud.network.IpAddress.State... skipInStates) {
         long ownerId = router.getAccountId();
         final List<IPAddressVO> userIps = _networkMgr.listPublicIpsAssignedToGuestNtwk(ownerId, guestNetworkId, null);
         List<PublicIp> allPublicIps = new ArrayList<PublicIp>();
         if (userIps != null && !userIps.isEmpty()) {
+            boolean addIp = true;
             for (IPAddressVO userIp : userIps) {
+                if (skipInStates != null) {
+                    for (IpAddress.State stateToSkip : skipInStates) {
+                        if (userIp.getState() == stateToSkip) {
+                            s_logger.debug("Skipping ip address " + userIp + " in state " + userIp.getState());
+                            addIp = false;
+                            break;
+                        }
+                    }
+                }
+                
+                if (addIp) {
                     PublicIp publicIp = new PublicIp(userIp, _vlanDao.findById(userIp.getVlanId()), 
                             NetUtils.createSequenceBasedMacAddress(userIp.getMacAddress()));
-                allPublicIps.add(publicIp);
+                    allPublicIps.add(publicIp);
+                }
             }
         }
         

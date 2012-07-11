@@ -394,6 +394,25 @@ setup_sshd(){
   [ -f /etc/ssh/sshd_config ] && sed -i -e "s/^[#]*ListenAddress.*$/ListenAddress $ip/" /etc/ssh/sshd_config
 }
 
+setup_vpc_apache2() {
+  log_it "Setting up apache web server for VPC"
+  chkconfig apache2 off
+  rm -f /etc/apache2/conf.d/vhost*.conf
+  [ -f /etc/apache2/sites-available/default ] && echo "" >/etc/apache2/sites-available/default
+  [ -f /etc/apache2/sites-available/default-ssl ] && echo "">/etc/apache2/sites-available/default-ssl
+  [ -f /etc/apache2/ports.conf ] && echo "">/etc/apache2/ports.conf
+  [ -f /etc/apache2/ports.conf ] && echo "">/etc/apache2/ports.conf
+  [ -f /etc/apache2/ports.conf ] && echo "">/etc/apache2/ports.conf
+  [ -f /etc/apache2/conf.d/security ] && sed -i -e "s/^ServerTokens .*/ServerTokens Prod/g" /etc/apache2/conf.d/security
+  [ -f /etc/apache2/conf.d/security ] && sed -i -e "s/^ServerSignature .*/ServerSignature Off/g" /etc/apache2/conf.d/security
+
+  # Disable listing of http://SSVM-IP/icons folder for security issue. see article http://www.i-lateral.com/tutorials/disabling-the-icons-folder-on-an-ubuntu-web-server/
+  [ -f /etc/apache2/mods-available/alias.conf ] && sed -i s/"Options Indexes MultiViews"/"Options -Indexes MultiViews"/ /etc/apache2/mods-available/alias.conf
+
+  echo "Options -Indexes" > /var/www/html/.htaccess
+}
+
+
 setup_apache2() {
   log_it "Setting up apache web server"
   local ip=$1
@@ -560,7 +579,7 @@ setup_vpcrouter() {
   fi
 
     cat > /etc/network/interfaces << EOF
-auto lo $1
+auto lo
 iface lo inet loopback
 EOF
   setup_interface "0" $ETH0_IP $ETH0_MASK $GW
@@ -569,6 +588,9 @@ EOF
   echo 'AVAHI_DAEMON_DETECT_LOCAL=0' > /etc/default/avahi-daemon
   hostname $NAME
   
+  sed -i  /gateway/d /etc/hosts
+  sed -i /$NAME/d /etc/hosts
+  echo "$ETH0_IP $NAME" >> /etc/hosts
   #Nameserver
   sed -i -e "/^nameserver.*$/d" /etc/resolv.conf # remove previous entries
   sed -i -e "/^nameserver.*$/d" /etc/dnsmasq-resolv.conf # remove previous entries
@@ -596,7 +618,10 @@ EOF
   fi
   if [ -n "$MGMTNET"  -a -n "$LOCAL_GW" ]
   then
-    ip route add $MGMTNET via $LOCAL_GW dev eth1
+    if [ "$hyp" == "vmware" ]
+    then
+      ip route add $MGMTNET via $LOCAL_GW dev eth0
+    fi
   fi
 
   ip route delete default
@@ -607,10 +632,8 @@ EOF
   sudo ip rule add from $VPCCIDR table static_route 2>/dev/null
   sudo ip rule add from $VPCCIDR table static_route_back 2>/dev/null
 
-  sed -i  /gateway/d /etc/hosts
-
-  echo "$ETH0_IP $NAME" >> /etc/hosts
   setup_sshd $ETH0_IP
+  setup_vpc_apache2
 
   enable_svc dnsmasq 1
   enable_svc haproxy 1

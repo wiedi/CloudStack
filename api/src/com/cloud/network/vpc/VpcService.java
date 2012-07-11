@@ -107,22 +107,24 @@ public interface VpcService {
      * @param isRecursive TODO
      * @param listAll TODO
      * @param restartRequired TODO
+     * @param tags TODO
      * @param vpc
      * @return
      */
     public List<? extends Vpc> listVpcs(Long id, String vpcName, String displayText, 
             List<String> supportedServicesStr, String cidr, Long vpcOffId, String state, String accountName, Long domainId,
             String keyword, Long startIndex, Long pageSizeVal, Long zoneId, Boolean isRecursive, Boolean listAll, 
-            Boolean restartRequired);
+            Boolean restartRequired, Map<String, String> tags);
 
     /**
      * @param vpcId
+     * @param destroyOnFailure TODO
      * @return
      * @throws InsufficientCapacityException 
      * @throws ResourceUnavailableException 
      * @throws ConcurrentOperationException 
      */
-    boolean startVpc(long vpcId) throws ConcurrentOperationException, ResourceUnavailableException, InsufficientCapacityException;
+    boolean startVpc(long vpcId, boolean destroyOnFailure) throws ConcurrentOperationException, ResourceUnavailableException, InsufficientCapacityException;
 
     /**
      * @param vpcId

@@ -41,6 +41,7 @@ import com.cloud.stack.models.CloudStackOsType;
 import com.cloud.stack.models.CloudStackPasswordData;
 import com.cloud.stack.models.CloudStackPortForwardingRule;
 import com.cloud.stack.models.CloudStackResourceLimit;
+import com.cloud.stack.models.CloudStackResourceTag;
 import com.cloud.stack.models.CloudStackSecurityGroup;
 import com.cloud.stack.models.CloudStackSecurityGroupIngress;
 import com.cloud.stack.models.CloudStackServiceOffering;
@@ -311,13 +312,14 @@ public class CloudStackApi {
 	 * @return
 	 * @throws Exception
 	 */
-	public List<CloudStackUserVm> listVirtualMachines(String account, String accountId, Boolean forVirtualNetwork, String groupId, String hostId, 
+    public List<CloudStackUserVm> listVirtualMachines(String account, String accountId, Boolean listAll, Boolean forVirtualNetwork, String groupId, String hostId, 
 			String hypervisor, String id, Boolean isRecursive, String keyWord, String name, String networkId, String podId, String state, String storageId, 
 			String zoneId) throws Exception {
 		CloudStackCommand cmd = new CloudStackCommand(ApiConstants.LIST_VIRTUAL_MACHINES);
 		if (cmd != null) {
 			if (account != null) cmd.setParam(ApiConstants.ACCOUNT, account);
 			if (accountId != null) cmd.setParam(ApiConstants.ACCOUNT_ID, accountId);
+            if (listAll != null) cmd.setParam(ApiConstants.LIST_ALL, listAll.toString());
 			if (forVirtualNetwork != null) cmd.setParam(ApiConstants.FOR_VIRTUAL_NETWORK, forVirtualNetwork.toString());
 			if (groupId != null) cmd.setParam(ApiConstants.GROUP_ID, groupId);
 			if (hostId != null) cmd.setParam(ApiConstants.HOST_ID, hostId);
@@ -972,7 +974,81 @@ public class CloudStackApi {
 		}
 		return _client.call(cmd, apiKey, secretKey, true, ApiConstants.EXTRACT_VOLUME_RESPONSE, ApiConstants.VOLUME, CloudStackExtractTemplate.class);
 	}
-	
+
+    //Tags
+    /**
+     * Create tags
+     *
+     * @param resource type
+     * @param resource id's
+     * @param tags
+     * @return
+     * @throws Exception
+     *
+     */
+    public CloudStackInfoResponse createTags(String resourceType, List<String>resourceIds, 
+            List<CloudStackKeyValue> resourceTags) throws Exception {
+        CloudStackCommand cmd = new CloudStackCommand(ApiConstants.CREATE_TAGS);
+        cmd = setParams(cmd, resourceType, resourceIds, resourceTags);
+        return _client.call(cmd, apiKey, secretKey, true, ApiConstants.CREATE_TAGS_RESPONSE, 
+                null, CloudStackInfoResponse.class);
+    }
+
+    /**
+     * Delete tags
+     *
+     * @param resource type
+     * @param resource id's
+     * @param tags
+     * @return
+     * @throws Exception
+     *
+     */
+    public CloudStackInfoResponse deleteTags(String resourceType, List<String>resourceIds, 
+            List<CloudStackKeyValue> resourceTags) throws Exception {
+        CloudStackCommand cmd = new CloudStackCommand(ApiConstants.DELETE_TAGS);
+        cmd = setParams(cmd, resourceType, resourceIds, resourceTags);
+        return _client.call(cmd, apiKey, secretKey, true, ApiConstants.DELETE_TAGS_RESPONSE, 
+                null, CloudStackInfoResponse.class);
+    }
+
+    public List<CloudStackResourceTag> listTags(String account, String domainId, 
+            Boolean isRecursive, Boolean listAll, String keyWord) throws Exception {
+        CloudStackCommand cmd = new CloudStackCommand(ApiConstants.LIST_TAGS);
+        if (cmd != null) {
+            if (account != null) cmd.setParam(ApiConstants.ACCOUNT, account);
+            if (domainId != null) cmd.setParam(ApiConstants.DOMAIN_ID, domainId);
+            if (isRecursive != null) cmd.setParam(ApiConstants.IS_RECURSIVE, isRecursive.toString());
+            if (listAll != null) cmd.setParam(ApiConstants.LIST_ALL, listAll.toString());
+            if (keyWord != null) cmd.setParam(ApiConstants.KEYWORD, keyWord);
+        }
+        return _client.listCall(cmd, apiKey, secretKey, ApiConstants.LIST_TAGS_RESPONSE, 
+                ApiConstants.TAG , new TypeToken<List<CloudStackResourceTag>>() {}.getType());
+    }
+
+    private CloudStackCommand setParams(CloudStackCommand cmd, String resourceType, List<String>resourceIds, 
+            List<CloudStackKeyValue> resourceTags) {
+    	if (cmd != null) {
+            cmd.setParam(ApiConstants.RESOURCE_TYPE, resourceType);
+            if (resourceIds != null && resourceIds.size() > 0) {
+                String resourceIdList = resourceIds.get(0);
+                for (int i=1 ; i<resourceIds.size(); i++)
+                    resourceIdList = resourceIdList.concat(","+resourceIds.get(i));
+                cmd.setParam(ApiConstants.RESOURCE_IDS, resourceIdList);
+            }
+            if (resourceTags != null && resourceTags.size() > 0) {
+                int i=0;
+                for (CloudStackKeyValue resourceTag : resourceTags) {
+                    cmd.setParam(ApiConstants.TAGS+"["+i+"].key", resourceTag.getKey());
+                    if (resourceTag.getValue() != null)
+                        cmd.setParam(ApiConstants.TAGS+"["+i+"].value", resourceTag.getValue());
+                    i++;
+                }
+            }
+        }
+    	return cmd;
+    }
+    
 	// Security Groups
 	/**
 	 * Creates a security group
@@ -1087,13 +1163,14 @@ public class CloudStackApi {
 	 * @return
 	 * @throws Exception
 	 */
-	public List<CloudStackSecurityGroup> listSecurityGroups(String account, String domainId, String id, String keyWord, String securityGroupName, 
-			String virtualMachineId) throws Exception {
+    public List<CloudStackSecurityGroup> listSecurityGroups(String account, String domainId, String id, Boolean listAll, String keyWord, 
+            String securityGroupName, String virtualMachineId) throws Exception {
 		CloudStackCommand cmd = new CloudStackCommand(ApiConstants.LIST_SECURITY_GROUPS);
 		if (cmd != null) { 
 			if (account != null) cmd.setParam(ApiConstants.ACCOUNT, account);
 			if (domainId != null) cmd.setParam(ApiConstants.DOMAIN_ID, domainId);
 			if (id != null) cmd.setParam(ApiConstants.ID, id);
+            if (listAll != null) cmd.setParam(ApiConstants.LIST_ALL, listAll.toString());
 			if (keyWord != null) cmd.setParam(ApiConstants.KEYWORD, keyWord);
 			if (securityGroupName != null) cmd.setParam(ApiConstants.SECURITY_GROUP_NAME, securityGroupName);
 			if (virtualMachineId != null) cmd.setParam(ApiConstants.VIRTUAL_MACHINE_ID, virtualMachineId);

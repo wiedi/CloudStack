@@ -12,6 +12,8 @@
   var elems = {
     vpcConfigureTooltip: function(args) {
       var $browser = args.$browser;
+			var ipAddresses = args.ipAddresses;
+			var gateways = args.gateways;
       var siteToSiteVPN = args.siteToSiteVPN;
       var links = {
         'ip-addresses': 'IP Addresses',
@@ -32,21 +34,31 @@
         $link.appendTo($links);
 
         // Link event
-        $link.click(function() {
+        $link.click(function() {				  
           switch (id) {
-          case 'site-to-site-vpn':
+          case 'ip-addresses':					 
+					  $browser.cloudBrowser('addPanel', {
+						  title: 'IP Addresses',
+							maximizeIfSelected: true,
+							complete: function($panel) {	
+                //ipAddresses.listView is a function					
+								$panel.listView(ipAddresses.listView(), {context: ipAddresses.context});
+							}
+						});
+					  break;
+					case 'gateways':
+					  break;
+					case 'site-to-site-vpn':
             $browser.cloudBrowser('addPanel', {
               title: 'Site-to-site VPNs',
               maximizeIfSelected: true,
-              complete: function($panel) {
-                $panel.listView(
-                  $.isFunction(siteToSiteVPN.listView) ?
-                    siteToSiteVPN.listView() : siteToSiteVPN.listView
-                );
+              complete: function($panel) {	
+								//siteToSiteVPN is an object
+                $panel.listView(siteToSiteVPN, {context: siteToSiteVPN.context});		
               }
             });
             break;
-          }
+          }					
         });
       });
 
@@ -70,9 +82,11 @@
 
       return $tooltip;
     },
-    vpcConfigureArea: function(args) {
+    vpcConfigureArea: function(args) {				  
       var $browser = args.$browser;
-      var siteToSiteVPN = args.siteToSiteVPN;
+      var ipAddresses = args.ipAddresses;
+			var gateways = args.gateways;
+			var siteToSiteVPN = args.siteToSiteVPN;
       var $config = $('<div>').addClass('config-area');
       var $configIcon = $('<span>').addClass('icon').html('&nbsp');
 
@@ -82,6 +96,8 @@
       $configIcon.mouseover(function() {
         var $tooltip = elems.vpcConfigureTooltip({
           $browser: $browser,
+					ipAddresses: ipAddresses,
+					gateways: gateways,
           siteToSiteVPN: siteToSiteVPN
         });
 
@@ -118,6 +134,8 @@
           };
         }
       );
+      var detailView = args.detailView;
+      var $browser = args.$browser;
       var isPlaceholder = args.isPlaceholder;
       var virtualMachines = args.virtualMachines;
       var $tier = $('<li>').addClass('tier');
@@ -154,6 +172,19 @@
         }).closest('.ui-dialog').overlay();
       });
 
+      // Title shows tier details
+      $title.click(function() {
+        $browser.cloudBrowser('addPanel', {
+          title: name,
+          maximizeIfSelected: true,
+          complete: function($panel) {
+            $panel.detailView($.extend(true, {}, detailView, {
+              context: context
+            }));
+          }
+        });
+      });
+
       if (isPlaceholder) {
         $tier.addClass('placeholder');
         $title.html('Create Tier');
@@ -161,7 +192,7 @@
         $title.html(name);
         $cidr.html(cidr);
         $vmCount.append(
-          $('<span>').addClass('total').html(virtualMachines.length),
+          $('<span>').addClass('total').html(virtualMachines != null? virtualMachines.length: 0),
           ' VMs'
         );
         $tier.append($actions);
@@ -221,15 +252,18 @@
 
       return $tier;
     },
-    chart: function(args) {
+    chart: function(args) {		 
       var $browser = args.$browser;
-      var siteToSiteVPN = args.siteToSiteVPN;
+      var ipAddresses = args.ipAddresses;
+			var gateways = args.gateways;
+			var siteToSiteVPN = args.siteToSiteVPN;
       var tiers = args.tiers;
       var vmListView = args.vmListView;
       var actions = args.actions;
       var actionPreFilter = args.actionPreFilter;
       var vpcName = args.vpcName;
       var context = args.context;
+      var tierDetailView = args.tierDetailView;
       var $tiers = $('<ul>').addClass('tiers');
       var $router = elems.router();
       var $chart = $('<div>').addClass('vpc-chart');
@@ -240,7 +274,9 @@
             .append(
               elems.vpcConfigureArea({
                 $browser: $browser,
-                siteToSiteVPN: siteToSiteVPN
+								ipAddresses: $.extend(ipAddresses, {context: context}),
+								gateways: $.extend(gateways, {context: context}),
+                siteToSiteVPN: $.extend(siteToSiteVPN, {context: context})
               })
             );
 
@@ -250,6 +286,8 @@
         }
 
         addTierDialog({
+          $browser: $browser,
+          tierDetailView: tierDetailView,
           $tiers: $tiers,
           context: context,
           actions: actions,
@@ -260,9 +298,11 @@
         return true;
       };
 
-      if (tiers.length) {
+      if (tiers != null && tiers.length > 0) {
         $(tiers).map(function(index, tier) {
           var $tier = elems.tier({
+            $browser: $browser,
+            detailView: tierDetailView,
             name: tier.name,
             cidr: tier.cidr,
             virtualMachines: tier.virtualMachines,
@@ -270,7 +310,7 @@
             actions: actions,
             actionPreFilter: actionPreFilter,
             context: $.extend(true, {}, context, {
-              tiers: [tier]
+              networks: [tier]
             })
           });
 
@@ -341,34 +381,31 @@
         },
 
         // Success
-        function(args) {
-          var newData = args.data ? args.data : {};
-          var newTier = $.extend(true, {}, context.tiers[0], newData);
-          var newContext = $.extend(true, {}, context);
-
-          // Update data
-          newContext.tiers = [newTier];
-
-          if (remove) {
-            $tier.remove();
-          } else {
-            $loading.remove();
-          }
-
-          if (actionID == 'addVM') {
-            // Increment VM total
-            var $total = $tier.find('.vm-count .total');
-            var prevTotal = parseInt($total.html());
-            var newTotal = prevTotal + 1;
-
-            $total.html(newTotal);
-          }
-
-          filterActions({
-            $actions: $actions,
-            actionPreFilter: actionPreFilter,
-            context: newContext
-          });
+        function(args) {				  
+					if (actionID == 'addVM') {	
+						// Increment VM total
+						var $total = $tier.find('.vm-count .total');
+						var prevTotal = parseInt($total.html());
+						var newTotal = prevTotal + 1;
+						$total.html(newTotal);
+						
+						$loading.remove();
+						
+						var newVM = args.data;		
+            var newContext = $.extend(true, {}, context, {
+						  vms: [newVM]
+						});			
+						filterActions({
+							$actions: $actions,
+							actionPreFilter: actionPreFilter,
+							context: newContext
+						});						
+					}	
+					
+					else if (actionID == 'remove') { //remove tier		
+					  $tier.remove();
+					}				
+					
         },
 
         {},
@@ -395,8 +432,10 @@
         action({
           context: context,
           response: {
-            success: function(args) {
-              success({ remove: true });
+            success: function(args) {						  				
+              success($.extend(args, { 
+							  remove: true 
+							}));
             }
           }
         });
@@ -439,7 +478,11 @@
     var vmListView = args.vmListView;
     var actionPreFilter = args.actionPreFilter;
     var context = args.context;
+    var $browser = args.$browser;
+    var tierDetailView = args.tierDetailView;
     var tier = $.extend(args.tier, {
+      $browser: $browser,
+      detailView: tierDetailView,
       context: context,
       vmListView: vmListView,
       actions: actions,
@@ -463,6 +506,8 @@
     var vmListView = args.vmListView;
     var actionPreFilter = args.actionPreFilter;
     var $tiers = args.$tiers;
+    var $browser = args.$browser;
+    var tierDetailView = args.tierDetailView;
 
     cloudStack.dialog.createForm({
       form: actions.add.createForm,
@@ -472,22 +517,23 @@
           context: context,
           data: args.data,
           response: {
-            success: function(args) {
+            success: function(args) {						  
               var tier = args.data;
 
               cloudStack.ui.notifications.add(
                 // Notification
                 {
-                  desc: actions.add.label,
-                  poll: actions.add.notification.poll
+                  desc: actions.add.label                  
                 },
 
                 // Success
                 function(args) {
                   $loading.remove();
                   addNewTier({
+                    $browser: $browser,
+                    tierDetailView: tierDetailView,
                     context: $.extend(true, {}, context, {
-                      tiers: [tier]
+                      networks: [tier]
                     }),
                     tier: tier,
                     $tiers: $tiers,
@@ -504,7 +550,11 @@
                   $loading.remove();
                 }
               );
-            }
+            },
+						error: function(errorMsg) {						 
+							cloudStack.dialog.notice({ message: _s(errorMsg) });							
+						  $loading.remove();
+						}						
           }
         });
       }
@@ -514,7 +564,9 @@
   cloudStack.uiCustom.vpc = function(args) {
     var vmListView = args.vmListView;
     var tierArgs = args.tiers;
-    var siteToSiteVPN = args.siteToSiteVPN;
+    var ipAddresses = args.ipAddresses;
+		var gateways = args.gateways;
+		var siteToSiteVPN = args.siteToSiteVPN;
 
     return function(args) {
       var context = args.context;
@@ -534,10 +586,13 @@
           tierArgs.dataProvider({
             context: context,
             response: {
-              success: function(args) {
-                var tiers = args.data.tiers;
+              success: function(args) {			
+                var tiers = args.tiers;
                 var $chart = elems.chart({
                   $browser: $browser,
+									ipAddresses: ipAddresses,
+									gateways: gateways,
+                  tierDetailView: tierArgs.detailView,
                   siteToSiteVPN: siteToSiteVPN,
                   vmListView: vmListView,
                   context: context,

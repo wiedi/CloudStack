@@ -16,7 +16,6 @@ import org.apache.log4j.Logger;
 
 import com.cloud.api.ApiConstants;
 import com.cloud.api.BaseAsyncCmd;
-import com.cloud.api.BaseAsyncCreateCmd;
 import com.cloud.api.BaseCmd;
 import com.cloud.api.IdentityMapper;
 import com.cloud.api.Implementation;
@@ -55,6 +54,14 @@ public class CreateVpnCustomerGatewayCmd extends BaseAsyncCmd {
     @Parameter(name=ApiConstants.LIFETIME, type=CommandType.LONG, required=false, description="Lifetime of vpn connection to the customer gateway, in seconds")
     private Long lifetime;
 
+    @Parameter(name=ApiConstants.ACCOUNT, type=CommandType.STRING, description="the account associated with the gateway. Must be used with the domainId parameter.")
+    private String accountName;
+    
+    @IdentityMapper(entityTableName="domain")
+    @Parameter(name=ApiConstants.DOMAIN_ID, type=CommandType.LONG, description="the domain ID associated with the gateway. " +
+    		"If used with the account parameter returns the gateway associated with the account for the specified domain.")
+    private Long domainId;
+    
     /////////////////////////////////////////////////////
     /////////////////// Accessors ///////////////////////
     /////////////////////////////////////////////////////
@@ -87,6 +94,14 @@ public class CreateVpnCustomerGatewayCmd extends BaseAsyncCmd {
         return lifetime;
     }
 
+    public String getAccountName() {
+        return accountName;
+    }
+
+    public Long getDomainId() {
+        return domainId;
+    }
+
     /////////////////////////////////////////////////////
     /////////////// API Implementation///////////////////
     /////////////////////////////////////////////////////
@@ -99,12 +114,20 @@ public class CreateVpnCustomerGatewayCmd extends BaseAsyncCmd {
 
 	@Override
 	public long getEntityOwnerId() {
-        return Account.ACCOUNT_ID_SYSTEM;
+        Long accountId = finalyzeAccountId(accountName, domainId, null, true);
+        if (accountId == null) {
+            accountId = UserContext.current().getCaller().getId();
+        }
+        
+        if (accountId == null) {
+            accountId = Account.ACCOUNT_ID_SYSTEM;
+        }
+        return accountId;
     }
 
 	@Override
 	public String getEventDescription() {
-		return "Create site-to-site VPN customer gateway";
+		return "Create site-to-site VPN customer gateway for account " + getEntityOwnerId();
 	}
 
 	@Override

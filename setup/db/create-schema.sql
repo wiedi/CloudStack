@@ -2003,6 +2003,7 @@ CREATE TABLE `cloud`.`physical_network_service_providers` (
   `port_forwarding_service_provided` tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT 'Is Port Forwarding service provided',
   `user_data_service_provided` tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT 'Is UserData service provided',
   `security_group_service_provided` tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT 'Is SG service provided',
+  `networkacl_service_provided` tinyint(1) unsigned NOT NULL DEFAULT 0 COMMENT 'Is Network ACL service provided',
   `removed` datetime COMMENT 'date removed if not null',
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_pnetwork_service_providers__physical_network_id` FOREIGN KEY (`physical_network_id`) REFERENCES `physical_network`(`id`) ON DELETE CASCADE,
@@ -2136,24 +2137,32 @@ CREATE TABLE `cloud`.`port_profile` (
 CREATE TABLE `cloud`.`s2s_vpn_gateway` (
   `id` bigint unsigned NOT NULL auto_increment COMMENT 'id',
   `uuid` varchar(40),
-  `addr_id` bigint unsigned UNIQUE NOT NULL,
+  `addr_id` bigint unsigned NOT NULL,
+  `domain_id` bigint unsigned NOT NULL,
+  `account_id` bigint unsigned NOT NULL,
   `removed` datetime COMMENT 'date removed if not null',
   PRIMARY KEY  (`id`),
   CONSTRAINT `fk_s2s_vpn_gateway__addr_id` FOREIGN KEY (`addr_id`) REFERENCES `user_ip_address` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_s2s_vpn_gateway__account_id` FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_s2s_vpn_gateway__domain_id` FOREIGN KEY (`domain_id`) REFERENCES `domain`(`id`) ON DELETE CASCADE,
   CONSTRAINT `uc_s2s_vpn_gateway__uuid` UNIQUE (`uuid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE `cloud`.`s2s_customer_gateway` (
   `id` bigint unsigned NOT NULL auto_increment COMMENT 'id',
   `uuid` varchar(40),
-  `gateway_ip` char(40) UNIQUE NOT NULL,
+  `gateway_ip` char(40) NOT NULL,
   `guest_cidr_list` varchar(200) NOT NULL,
   `ipsec_psk` varchar(256),
   `ike_policy` varchar(30) NOT NULL,
   `esp_policy` varchar(30) NOT NULL,
   `lifetime` int,
+  `domain_id` bigint unsigned NOT NULL,
+  `account_id` bigint unsigned NOT NULL,
   `removed` datetime COMMENT 'date removed if not null',
   PRIMARY KEY  (`id`),
+  CONSTRAINT `fk_s2s_customer_gateway__account_id` FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_s2s_customer_gateway__domain_id` FOREIGN KEY (`domain_id`) REFERENCES `domain`(`id`) ON DELETE CASCADE,
   CONSTRAINT `uc_s2s_customer_gateway__uuid` UNIQUE (`uuid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -2163,14 +2172,17 @@ CREATE TABLE `cloud`.`s2s_vpn_connection` (
   `vpn_gateway_id` bigint unsigned NULL,
   `customer_gateway_id` bigint unsigned NULL,
   `state` varchar(32) NOT NULL,
+  `domain_id` bigint unsigned NOT NULL,
+  `account_id` bigint unsigned NOT NULL,
   `created` datetime NOT NULL COMMENT 'date created',
   `removed` datetime COMMENT 'date removed if not null',
   PRIMARY KEY  (`id`),
   CONSTRAINT `fk_s2s_vpn_connection__vpn_gateway_id` FOREIGN KEY (`vpn_gateway_id`) REFERENCES `s2s_vpn_gateway` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_s2s_vpn_connection__customer_gateway_id` FOREIGN KEY (`customer_gateway_id`) REFERENCES `s2s_customer_gateway` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_s2s_vpn_connection__account_id` FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_s2s_vpn_connection__domain_id` FOREIGN KEY (`domain_id`) REFERENCES `domain`(`id`) ON DELETE CASCADE,
   CONSTRAINT `uc_s2s_vpn_connection__uuid` UNIQUE (`uuid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
-
 
 CREATE TABLE `cloud`.`resource_tags` (
   `id` bigint unsigned NOT NULL auto_increment COMMENT 'id',
@@ -2178,6 +2190,7 @@ CREATE TABLE `cloud`.`resource_tags` (
   `key` varchar(255),
   `value` varchar(255),
   `resource_id` bigint unsigned NOT NULL,
+  `resource_uuid` varchar(40),
   `resource_type` varchar(255),
   `customer` varchar(255),
   `domain_id` bigint unsigned NOT NULL COMMENT 'foreign key to domain id',
@@ -2185,8 +2198,9 @@ CREATE TABLE `cloud`.`resource_tags` (
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_tags__account_id` FOREIGN KEY(`account_id`) REFERENCES `account`(`id`),
   CONSTRAINT `fk_tags__domain_id` FOREIGN KEY(`domain_id`) REFERENCES `domain`(`id`),
-  UNIQUE `i_tags__resource_id__resource_type__key`(`resource_id`, `resource_type`, `key`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+  UNIQUE `i_tags__resource_id__resource_type__key`(`resource_id`, `resource_type`, `key`),
+  CONSTRAINT `uc_resource_tags__uuid` UNIQUE (`uuid`)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 CREATE TABLE `cloud`.`vpc` (
   `id` bigint unsigned NOT NULL auto_increment COMMENT 'id',
@@ -2282,8 +2296,10 @@ CREATE TABLE `cloud`.`private_ip_address` (
   `network_id` bigint unsigned NOT NULL COMMENT 'id of the network ip belongs to',
   `reservation_id` char(40) COMMENT 'reservation id',
   `mac_address` varchar(17) COMMENT 'mac address',
+  `vpc_id` bigint unsigned COMMENT 'vpc this ip belongs to',
   `taken` datetime COMMENT 'Date taken',
   PRIMARY KEY (`id`),
+  CONSTRAINT `fk_private_ip_address__vpc_id` FOREIGN KEY `fk_private_ip_address__vpc_id`(`vpc_id`) REFERENCES `vpc`(`id`),
   CONSTRAINT `fk_private_ip_address__network_id` FOREIGN KEY (`network_id`) REFERENCES `networks` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 

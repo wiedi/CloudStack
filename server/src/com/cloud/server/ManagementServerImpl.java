@@ -1292,12 +1292,15 @@ public class ManagementServerImpl implements ManagementServer {
         boolean showDomr = ((templateFilter != TemplateFilter.selfexecutable) && (templateFilter != TemplateFilter.featured));
         HypervisorType hypervisorType = HypervisorType.getType(cmd.getHypervisor());
 
-        return listTemplates(id, cmd.getTemplateName(), cmd.getKeyword(), templateFilter, false, null, cmd.getPageSizeVal(), cmd.getStartIndex(), cmd.getZoneId(), hypervisorType, showDomr,
+        return listTemplates(id, cmd.getTemplateName(), cmd.getKeyword(), templateFilter, false, null, 
+                cmd.getPageSizeVal(), cmd.getStartIndex(), cmd.getZoneId(), hypervisorType, showDomr,
                 cmd.listInReadyState(), permittedAccounts, caller, listProjectResourcesCriteria, tags);
     }
 
-    private Set<Pair<Long, Long>> listTemplates(Long templateId, String name, String keyword, TemplateFilter templateFilter, boolean isIso, Boolean bootable, Long pageSize, Long startIndex,
-            Long zoneId, HypervisorType hyperType, boolean showDomr, boolean onlyReady, List<Account> permittedAccounts, Account caller, ListProjectResourcesCriteria listProjectResourcesCriteria, Map<String, String> tags) {
+    private Set<Pair<Long, Long>> listTemplates(Long templateId, String name, String keyword, TemplateFilter templateFilter,
+            boolean isIso, Boolean bootable, Long pageSize, Long startIndex, Long zoneId, HypervisorType hyperType,
+            boolean showDomr, boolean onlyReady, List<Account> permittedAccounts, Account caller,
+            ListProjectResourcesCriteria listProjectResourcesCriteria, Map<String, String> tags) {
 
         VMTemplateVO template = null;
         if (templateId != null) {
@@ -1335,11 +1338,12 @@ public class ManagementServerImpl implements ManagementServer {
             if (template == null) {
                 templateZonePairSet = _templateDao.searchSwiftTemplates(name, keyword, templateFilter, isIso, 
                         hypers, bootable, domain, pageSize, startIndex, zoneId, hyperType, onlyReady, showDomr,
-                        permittedAccounts, caller);
+                        permittedAccounts, caller, tags);
                 Set<Pair<Long, Long>> templateZonePairSet2 = new HashSet<Pair<Long, Long>>();
                 templateZonePairSet2 = _templateDao.searchTemplates(name, keyword, templateFilter, isIso, hypers, 
                         bootable, domain, pageSize, startIndex, zoneId, hyperType, onlyReady, showDomr,
-                        permittedAccounts, caller, listProjectResourcesCriteria);
+                        permittedAccounts, caller, listProjectResourcesCriteria, tags);
+                
                 for (Pair<Long, Long> tmpltPair : templateZonePairSet2) {
                     if (!templateZonePairSet.contains(new Pair<Long, Long>(tmpltPair.first(), -1L))) {
                         templateZonePairSet.add(tmpltPair);
@@ -1358,7 +1362,7 @@ public class ManagementServerImpl implements ManagementServer {
             if (template == null) {
                 templateZonePairSet = _templateDao.searchTemplates(name, keyword, templateFilter, isIso, hypers, 
                         bootable, domain, pageSize, startIndex, zoneId, hyperType, onlyReady, showDomr,
-                        permittedAccounts, caller, listProjectResourcesCriteria);
+                        permittedAccounts, caller, listProjectResourcesCriteria, tags);
             } else {
                 // if template is not public, perform permission check here
                 if (!template.isPublicTemplate() && caller.getType() != Account.ACCOUNT_TYPE_ADMIN) {
@@ -1601,6 +1605,7 @@ public class ManagementServerImpl implements ManagementServer {
         String keyword = cmd.getKeyword();
         Long networkId = cmd.getNetworkId();
         Long vpcId = cmd.getVpcId();
+        Boolean forVpc = cmd.getForVpc();
 
         Account caller = UserContext.current().getCaller();
         List<Long> permittedAccounts = new ArrayList<Long>();
@@ -1622,6 +1627,14 @@ public class ManagementServerImpl implements ManagementServer {
         sb.and("podId", sb.entity().getPodIdToDeployIn(), SearchCriteria.Op.EQ);
         sb.and("hostId", sb.entity().getHostId(), SearchCriteria.Op.EQ);
         sb.and("vpcId", sb.entity().getVpcId(), SearchCriteria.Op.EQ);
+        
+        if (forVpc != null) {
+            if (forVpc) {
+                sb.and("forVpc", sb.entity().getVpcId(), SearchCriteria.Op.NNULL); 
+            } else {
+                sb.and("forVpc", sb.entity().getVpcId(), SearchCriteria.Op.NULL); 
+            }
+        }
 
         if (networkId != null) {
             SearchBuilder<NicVO> nicSearch = _nicDao.createSearchBuilder();
@@ -1632,7 +1645,7 @@ public class ManagementServerImpl implements ManagementServer {
 
             sb.join("nicSearch", nicSearch, sb.entity().getId(), nicSearch.entity().getInstanceId(), JoinBuilder.JoinType.INNER);
         }
-
+        
         SearchCriteria<DomainRouterVO> sc = sb.create();
         _accountMgr.buildACLSearchCriteria(sc, domainId, isRecursive, permittedAccounts, listProjectResourcesCriteria);
 

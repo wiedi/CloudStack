@@ -58,6 +58,7 @@ import com.cloud.stack.models.CloudStackNic;
 import com.cloud.stack.models.CloudStackOsType;
 import com.cloud.stack.models.CloudStackPasswordData;
 import com.cloud.stack.models.CloudStackResourceLimit;
+import com.cloud.stack.models.CloudStackResourceTag;
 import com.cloud.stack.models.CloudStackSecurityGroup;
 import com.cloud.stack.models.CloudStackSecurityGroupIngress;
 import com.cloud.stack.models.CloudStackServiceOffering;
@@ -869,7 +870,7 @@ public class EC2Engine {
 	public boolean associateAddress( EC2AssociateAddress request ) {
 		try {
 			CloudStackIpAddress cloudIp = getApi().listPublicIpAddresses(null, null, null, null, null, request.getPublicIp(), null, null, null).get(0);
-			CloudStackUserVm cloudVm = getApi().listVirtualMachines(null, null, null, null, null, null, request.getInstanceId(), null, null, null, null, null, null, null, null).get(0);
+	        CloudStackUserVm cloudVm = getApi().listVirtualMachines(null, null, true, null, null, null, null, request.getInstanceId(), null, null, null, null, null, null, null, null).get(0);
 
 			CloudStackInfoResponse resp = getApi().enableStaticNat(cloudIp.getId(), cloudVm.getId());
 			if (resp != null) {
@@ -1309,6 +1310,80 @@ public class EC2Engine {
 			throw new EC2ServiceException(ServerError.InternalError, e.getMessage() != null ? e.getMessage() : "An unexpected error occurred.");
 		}   	    
 	}
+
+    /**
+     * Create/Delete tags
+     *
+     * @param request
+     * @param operation
+     * @return
+     */
+    public boolean modifyTags( EC2Tags request, String operation) {
+        try {
+            List<CloudStackKeyValue> resourceTagList = new ArrayList<CloudStackKeyValue>();
+            for ( EC2TagKeyValue resourceTag : request.getResourceTags()){
+                CloudStackKeyValue pair = new CloudStackKeyValue();
+                pair.setKeyValue(resourceTag.getKey(), resourceTag.getValue());
+                resourceTagList.add(pair);
+            }
+            EC2TagTypeId[] resourceTypeSet = request.getResourceTypeSet();
+            for (EC2TagTypeId resourceType : resourceTypeSet) {
+                String cloudStackResourceType = mapToCloudStackResourceType(resourceType.getResourceType());
+                List<String> resourceIdList = new ArrayList<String>();
+                for ( String resourceId : resourceType.getResourceIds())
+                    resourceIdList.add(resourceId);
+                CloudStackInfoResponse resp = new CloudStackInfoResponse();
+                if (operation.equalsIgnoreCase("create"))
+                    resp = getApi().createTags(cloudStackResourceType, resourceIdList, resourceTagList);
+                else if(operation.equalsIgnoreCase("delete"))
+                    resp = getApi().deleteTags(cloudStackResourceType, resourceIdList, resourceTagList);
+                else
+                    throw new EC2ServiceException( ServerError.InternalError, "Unknown operation." );
+                if (resp.getSuccess() == false)
+        	        return false;
+            }
+            return true;
+        } catch (Exception e){
+            logger.error( "EC2 Create/Delete Tags - ", e);
+            throw new EC2ServiceException(ServerError.InternalError, e.getMessage() != null ? 
+                    e.getMessage() : "An unexpected error occurred.");
+        }
+    }
+
+    /**
+     * Describe tags
+     *
+     * @param request
+     * @return
+     */
+    public EC2DescribeTagsResponse describeTags (EC2DescribeTags request) {
+        try {
+            EC2DescribeTagsResponse tagResponse = new EC2DescribeTagsResponse();
+            List<CloudStackResourceTag> resourceTagList = getApi().listTags(null, null, null, true, null);
+
+            List<EC2ResourceTag> tagList = new ArrayList<EC2ResourceTag>();
+            if (resourceTagList != null && resourceTagList.size() > 0) {
+                for (CloudStackResourceTag resourceTag: resourceTagList) {
+                    EC2ResourceTag tag = new EC2ResourceTag();
+                    tag.setResourceId(resourceTag.getResourceId());
+                    tag.setResourceType(mapToAmazonResourceType(resourceTag.getResourceType()));
+                    tag.setKey(resourceTag.getKey());
+                    if (resourceTag.getValue() != null)
+                        tag.setValue(resourceTag.getValue());
+                    tagResponse.addTags(tag);
+                 }
+            }
+
+            EC2TagsFilterSet tfs = request.getFilterSet();
+            if (tfs == null)
+                return tagResponse;
+            else
+                return tfs.evaluate(tagResponse);
+        } catch(Exception e) {
+            logger.error("EC2 DescribeTags - ", e);
+            throw new EC2ServiceException(ServerError.InternalError, e.getMessage());
+        }
+    }
 
 	/**
 	 * Reboot an instance or instances
@@ -1782,7 +1857,7 @@ public class EC2Engine {
 			throws Exception {
 
 		String instId = instanceId != null ? instanceId : null;
-		List<CloudStackUserVm> vms = getApi().listVirtualMachines(null, null, null, null, null, null, 
+        List<CloudStackUserVm> vms = getApi().listVirtualMachines(null, null, true, null, null, null, null, 
 				instId, null, null, null, null, null, null, null, null);
 		
 		if(vms != null && vms.size() > 0) {
@@ -1910,8 +1985,8 @@ public class EC2Engine {
 	public EC2DescribeSecurityGroupsResponse listSecurityGroups( String[] interestedGroups ) throws Exception {
 		try {
 			EC2DescribeSecurityGroupsResponse groupSet = new EC2DescribeSecurityGroupsResponse();
-			
-			List<CloudStackSecurityGroup> groups = getApi().listSecurityGroups(null, null, null, null, null, null);
+
+            List<CloudStackSecurityGroup> groups = getApi().listSecurityGroups(null, null, null, true, null, null, null);
 			if (groups != null && groups.size() > 0)
     			for (CloudStackSecurityGroup group : groups) {
     				boolean matched = false;
@@ -2243,6 +2318,36 @@ public class EC2Engine {
 
 		return "error"; 
 	}
+
+    /**
+     * Map Amazon resourceType to CloudStack resourceType
+     *
+     * @param Amazon resourceType
+     * @return CloudStack resourceType
+     */
+    private String mapToCloudStackResourceType( String resourceType) {
+        if (resourceType.equalsIgnoreCase("image"))
+            return("template");
+        else if(resourceType.equalsIgnoreCase("instance"))
+            return("userVm");
+        else
+            return resourceType;
+    }
+
+    /**
+     * Map Amazon resourceType to CloudStack resourceType
+     *
+     * @param CloudStack resourceType
+     * @return Amazon resourceType
+     */
+    private String mapToAmazonResourceType( String resourceType) {
+        if (resourceType.equalsIgnoreCase("template"))
+            return("image");
+        else if(resourceType.equalsIgnoreCase("userVm"))
+            return("instance");
+        else
+            return (resourceType.toLowerCase());
+    }
 
 	/**
 	 * Stop an instance

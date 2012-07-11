@@ -40,16 +40,32 @@ public class CreateVpnGatewayCmd extends BaseAsyncCmd {
     @Parameter(name=ApiConstants.PUBLIC_IP_ID, type=CommandType.LONG, required=true, description="public ip address id of the vpn gateway")
     private Long publicIpId;
 
+    @Parameter(name=ApiConstants.ACCOUNT, type=CommandType.STRING, description="the account associated with the connection. Must be used with the domainId parameter.")
+    private String accountName;
+    
+    @IdentityMapper(entityTableName="domain")
+    @Parameter(name=ApiConstants.DOMAIN_ID, type=CommandType.LONG, description="the domain ID associated with the connection. " +
+    		"If used with the account parameter returns the connection associated with the account for the specified domain.")
+    private Long domainId;
+    
     /////////////////////////////////////////////////////
     /////////////////// Accessors ///////////////////////
     /////////////////////////////////////////////////////
 
     public String getEntityTable() {
-    	return "user_ip_address";
+        return "user_ip_address";
     }
-    
+
     public Long getPublicIpId() {
         return publicIpId;
+    }
+
+    public String getAccountName() {
+        return accountName;
+    }
+
+    public Long getDomainId() {
+        return domainId;
     }
 
     /////////////////////////////////////////////////////
@@ -62,27 +78,27 @@ public class CreateVpnGatewayCmd extends BaseAsyncCmd {
         return s_name;
     }
 
-	@Override
-	public long getEntityOwnerId() {
-	    IpAddress ip = _networkService.getIp(publicIpId);
-	    
-	    if (ip == null) {
-	        throw new InvalidParameterValueException("Unable to find ip address by id=" + publicIpId);
-	    }
-	    
-	    return ip.getAccountId();
+    @Override
+    public long getEntityOwnerId() {
+        IpAddress ip = _networkService.getIp(publicIpId);
+
+        if (ip == null) {
+            throw new InvalidParameterValueException("Unable to find ip address by id", null);
+        }
+
+        return ip.getAccountId();
     }
 
-	@Override
-	public String getEventDescription() {
-		return "Create site-to-site VPN gateway for account " + getEntityOwnerId() + " using public ip id=" + publicIpId;
-	}
+    @Override
+    public String getEventDescription() {
+        return "Create site-to-site VPN gateway for account " + getEntityOwnerId() + " using public ip id=" + publicIpId;
+    }
 
-	@Override
-	public String getEventType() {
-		return EventTypes.EVENT_S2S_VPN_GATEWAY_CREATE;
-	}
-	
+    @Override
+    public String getEventType() {
+        return EventTypes.EVENT_S2S_VPN_GATEWAY_CREATE;
+    }
+
     @Override
     public void execute(){
         Site2SiteVpnGateway result = _s2sVpnService.createVpnGateway(this);
@@ -94,7 +110,7 @@ public class CreateVpnGatewayCmd extends BaseAsyncCmd {
             throw new ServerApiException(BaseCmd.INTERNAL_ERROR, "Failed to create VPN gateway");
         }
     }
-    
+
     @Override
     public String getSyncObjType() {
         return BaseAsyncCmd.vpcSyncObject;
@@ -108,7 +124,7 @@ public class CreateVpnGatewayCmd extends BaseAsyncCmd {
     private IpAddress getIp() {
         IpAddress ip = _networkService.getIp(publicIpId);
         if (ip == null) {
-            throw new InvalidParameterValueException("Unable to find ip address by id " + publicIpId);
+            throw new InvalidParameterValueException("Unable to find ip address by id", null);
         }
         return ip;
     }

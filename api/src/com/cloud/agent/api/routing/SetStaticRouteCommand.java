@@ -16,7 +16,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import com.cloud.agent.api.to.NetworkACLTO;
 import com.cloud.network.vpc.StaticRoute;
 import com.cloud.network.vpc.StaticRouteProfile;
 
@@ -37,6 +36,12 @@ public class SetStaticRouteCommand extends NetworkElementCommand{
         return staticRoutes;
     }
 
+    public boolean isEmpty() {
+        if(staticRoutes == null || staticRoutes.length == 0 ) {
+            return true;
+        }
+        return false;
+    }
     public String[][] generateSRouteRules() {
         String [][] result = new String [2][];
         Set<String> toAdd = new HashSet<String>();

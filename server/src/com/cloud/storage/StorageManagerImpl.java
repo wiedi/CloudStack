@@ -327,6 +327,7 @@ public class StorageManagerImpl implements StorageManager, Manager, ClusterManag
     @Inject(adapter = StoragePoolDiscoverer.class)
     protected Adapters<StoragePoolDiscoverer> _discoverers;
 
+
     protected SearchBuilder<VMTemplateHostVO> HostTemplateStatesSearch;
     protected GenericSearchBuilder<StoragePoolHostVO, Long> UpHostsInPoolSearch;
     protected SearchBuilder<VMInstanceVO> StoragePoolSearch;
@@ -3773,7 +3774,7 @@ public class StorageManagerImpl implements StorageManager, Manager, ClusterManag
         sb.join("vmSearch", vmSearch, sb.entity().getInstanceId(), vmSearch.entity().getId(), JoinBuilder.JoinType.LEFTOUTER);
         
         if (tags != null && !tags.isEmpty()) {
-        SearchBuilder<ResourceTagVO> tagSearch = _resourceTagDao.createSearchBuilder();
+            SearchBuilder<ResourceTagVO> tagSearch = _resourceTagDao.createSearchBuilder();
             for (int count=0; count < tags.size(); count++) {
                 tagSearch.or().op("key" + String.valueOf(count), tagSearch.entity().getKey(), SearchCriteria.Op.EQ);
                 tagSearch.and("value" + String.valueOf(count), tagSearch.entity().getValue(), SearchCriteria.Op.EQ);

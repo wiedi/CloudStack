@@ -1584,7 +1584,8 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
         String[] statRules = rules[LoadBalancerConfigurator.STATS];
 
         String args = "vpc_loadbalancer.sh " + routerIp;
-
+        String ip = cmd.getNic().getIp();
+        args += " -i " + ip;
         StringBuilder sb = new StringBuilder();
         if (addRules.length > 0) {
             for (int i = 0; i < addRules.length; i++) {
@@ -1742,13 +1743,13 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
     protected synchronized Answer execute(final VpnUsersCfgCommand cmd) {
         Connection conn = getConnection();
         for (VpnUsersCfgCommand.UsernamePassword userpwd: cmd.getUserpwds()) {
-            String args = cmd.getAccessDetail(NetworkElementCommand.ROUTER_IP);
+            String args = "vpn_l2tp.sh " + cmd.getAccessDetail(NetworkElementCommand.ROUTER_IP);
             if (!userpwd.isAdd()) {
                 args += " -U " + userpwd.getUsername();
             } else {
                 args += " -u " + userpwd.getUsernamePassword();
             }
-            String result = callHostPlugin(conn, "vmops", "lt2p_vpn", "args", args);
+            String result = callHostPlugin(conn, "vmops", "routerProxy", "args", args);
             if (result == null || result.isEmpty()) {
                 return new Answer(cmd, false, "Configure VPN user failed for user " + userpwd.getUsername());
             }
@@ -7208,7 +7209,11 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
                 String lmac = vif.getMAC(conn);
                 if ( lmac.equals(mac) ) {
                     vif.unplug(conn);
+                    Network network = vif.getNetwork(conn);
                     vif.destroy(conn);
+                    if (network.getNameLabel(conn).startsWith("VLAN")) {
+                        disableVlanNetwork(conn, network);
+                    }
                     break;
                 }
             }
@@ -7472,32 +7477,43 @@ public abstract class CitrixResourceBase implements ServerResource, HypervisorRe
     
     
     private SetStaticRouteAnswer execute(SetStaticRouteCommand cmd) {
-        String[] results = new String[cmd.getStaticRoutes().length];
         String callResult;
         Connection conn = getConnection();
         String routerIp = cmd.getAccessDetail(NetworkElementCommand.ROUTER_IP);
         try {
-            String [][] rules = cmd.generateSRouteRules();
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < rules.length; i++) {
-                sb.append(rules[i]).append(',');
-            }
-
-            String args = "vpc_staticroute.sh " + routerIp;
-            args += " -a " + sb.toString();
-            callResult = callHostPlugin(conn, "vmops", "routerProxy", "args", args);
-            if (callResult == null || callResult.isEmpty()) {
-                //FIXME - in the future we have to process each rule separately; now we temporarily set every rule to be false if single rule fails
-                for (int i=0; i < results.length; i++) {
-                    results[i] = "Failed";
+            if ( !cmd.isEmpty() ) {
+                String[] results = new String[cmd.getStaticRoutes().length];
+                String [][] rules = cmd.generateSRouteRules();
+                StringBuilder sb = new StringBuilder();
+                String[] srRules = rules[0];
+                for (int i = 0; i < srRules.length; i++) {
+                    sb.append(srRules[i]).append(',');
                 }
-                return new SetStaticRouteAnswer(cmd, false, results);
+                String args = "vpc_staticroute.sh " + routerIp;
+                args += " -a " + sb.toString();
+                callResult = callHostPlugin(conn, "vmops", "routerProxy", "args", args);
+                if (callResult == null || callResult.isEmpty()) {
+                    //FIXME - in the future we have to process each rule separately; now we temporarily set every rule to be false if single rule fails
+                    for (int i=0; i < results.length; i++) {
+                        results[i] = "Failed";
+                    }
+                    return new SetStaticRouteAnswer(cmd, false, results);
+                }
+                return new SetStaticRouteAnswer(cmd, true, results);
+            } else {
+                String args = "vpc_staticroute.sh " + routerIp;
+                args += " -a none";
+                callResult = callHostPlugin(conn, "vmops", "routerProxy", "args", args);
+                if (callResult == null || callResult.isEmpty()) {
+                    return new SetStaticRouteAnswer(cmd, false, null);
+                }
+                return new SetStaticRouteAnswer(cmd, true, null);
             }
-            return new SetStaticRouteAnswer(cmd, true, results);
+            
         } catch (Exception e) {
-            String msg = "SetNetworkACL failed due to " + e.toString();
+            String msg = "SetStaticRoute failed due to " + e.toString();
             s_logger.error(msg, e);
-            return new SetStaticRouteAnswer(cmd, false, results);
+            return new SetStaticRouteAnswer(cmd, false, null);
         }
     }
 }

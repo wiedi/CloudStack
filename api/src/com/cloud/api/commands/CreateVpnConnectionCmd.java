@@ -49,22 +49,39 @@ public class CreateVpnConnectionCmd extends BaseAsyncCreateCmd {
     @Parameter(name=ApiConstants.S2S_CUSTOMER_GATEWAY_ID, type=CommandType.LONG, required=true, description="id of the customer gateway")
     private Long customerGatewayId;
 
+    @Parameter(name=ApiConstants.ACCOUNT, type=CommandType.STRING, description="the account associated with the connection. Must be used with the domainId parameter.")
+    private String accountName;
+    
+    @IdentityMapper(entityTableName="domain")
+    @Parameter(name=ApiConstants.DOMAIN_ID, type=CommandType.LONG, description="the domain ID associated with the connection. " +
+    		"If used with the account parameter returns the connection associated with the account for the specified domain.")
+    private Long domainId;
+    
     /////////////////////////////////////////////////////
     /////////////////// Accessors ///////////////////////
     /////////////////////////////////////////////////////
 
+    @Override
     public String getEntityTable() {
-    	return "s2s_vpn_connection";
+        return "s2s_vpn_connection";
     }
-    
+
     public Long getVpnGatewayId() {
         return vpnGatewayId;
     }
-    
+
     public Long getCustomerGatewayId() {
         return customerGatewayId;
     }
-    
+
+    public String getAccountName() {
+        return accountName;
+    }
+
+    public Long getDomainId() {
+        return domainId;
+    }
+
     /////////////////////////////////////////////////////
     /////////////// API Implementation///////////////////
     /////////////////////////////////////////////////////
@@ -75,21 +92,29 @@ public class CreateVpnConnectionCmd extends BaseAsyncCreateCmd {
         return s_name;
     }
 
-	@Override
-	public long getEntityOwnerId() {
-        return Account.ACCOUNT_ID_SYSTEM;
+    @Override
+    public long getEntityOwnerId() {
+        Long accountId = finalyzeAccountId(accountName, domainId, null, true);
+        if (accountId == null) {
+            accountId = UserContext.current().getCaller().getId();
+        }
+        
+        if (accountId == null) {
+            accountId = Account.ACCOUNT_ID_SYSTEM;
+        }
+        return accountId;
     }
 
-	@Override
-	public String getEventDescription() {
-		return "Create site-to-site VPN connection";
-	}
+    @Override
+    public String getEventDescription() {
+        return "Create site-to-site VPN connection for account " + getEntityOwnerId();
+    }
 
-	@Override
-	public String getEventType() {
-		return EventTypes.EVENT_S2S_CONNECTION_CREATE;
-	}
-	
+    @Override
+    public String getEventType() {
+        return EventTypes.EVENT_S2S_CONNECTION_CREATE;
+    }
+
     @Override
     public void create() {
         try {
@@ -122,8 +147,8 @@ public class CreateVpnConnectionCmd extends BaseAsyncCreateCmd {
             throw new ServerApiException(BaseCmd.RESOURCE_UNAVAILABLE_ERROR, ex.getMessage());
         }
     }
-    
-    
+
+
     @Override
     public String getSyncObjType() {
         return BaseAsyncCmd.vpcSyncObject;
@@ -137,7 +162,7 @@ public class CreateVpnConnectionCmd extends BaseAsyncCreateCmd {
     private IpAddress getIp() {
         IpAddress ip = _s2sVpnService.getVpnGatewayIp(vpnGatewayId);
         if (ip == null) {
-            throw new InvalidParameterValueException("Unable to find ip address by vpn gateway id " + vpnGatewayId);
+            throw new InvalidParameterValueException("Unable to find ip address by vpn gateway id " + vpnGatewayId, null);
         }
         return ip;
     }

@@ -46,11 +46,11 @@ static_nat() {
 
   # shortcircuit the process if error and it is an append operation
   # continue if it is delete
-  (sudo iptables -t nat $op  PREROUTING -i $ethDev -d $publicIp -j DNAT \
+  (sudo iptables -t nat $op  PREROUTING -d $publicIp -j DNAT \
            --to-destination $instIp &>>  $OUTFILE || [ "$op" == "-D" ]) &&
   # add mark to force the package go out through the eth the public IP is on
-  (sudo iptables -t mangle $op PREROUTING -s $instIp -j MARK \
-           --set-mark $tableNo &> $OUTFILE ||  [ "$op" == "-D" ]) &&
+  #(sudo iptables -t mangle $op PREROUTING -s $instIp -j MARK \
+  #         --set-mark $tableNo &> $OUTFILE ||  [ "$op" == "-D" ]) &&
   (sudo iptables -t nat $op2 POSTROUTING -o $ethDev -s $instIp -j SNAT \
            --to-source $publicIp &>> $OUTFILE )
   result=$?
