@@ -418,8 +418,13 @@ public class LibvirtStorageAdaptor implements StorageAdaptor {
 	private void getStats(LibvirtStoragePool pool) {
 		Script statsScript = new Script("/bin/bash", s_logger);
 		statsScript.add("-c");
-		statsScript.add("stats=$(df --total " + pool.getLocalPath()
-				+ " |grep total|awk '{print $2,$3}');echo $stats");
+		if(pool.getType() == StoragePoolType.Sheepdog) {
+			statsScript.add("collie node info -r | grep Total | "
+					+ "awk '{print int($2 / 1024), int($5 / 1024)}'");
+		} else {
+			statsScript.add("stats=$(df --total " + pool.getLocalPath()
+					+ " |grep total|awk '{print $2,$3}');echo $stats");
+		}
 		final OutputInterpreter.OneLineParser statsParser = new OutputInterpreter.OneLineParser();
 		String result = statsScript.execute(statsParser);
 		if (result == null) {
