@@ -471,6 +471,15 @@ function clvmURL(vgname) {
 	return url;
 }
 
+function sheepdogURL(server) {
+	var url;
+	if(server.indexOf("://")==-1)
+		url = "sheepdog://" + server;
+	else
+		url = server;
+	return url;
+}
+
 function vmfsURL(server, path) {
 	var url;
 	if(server.indexOf("://")==-1)

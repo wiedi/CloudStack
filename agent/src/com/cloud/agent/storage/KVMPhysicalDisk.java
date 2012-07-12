@@ -18,7 +18,7 @@ public class KVMPhysicalDisk {
 	private KVMStoragePool pool;
 
 	public static enum PhysicalDiskFormat {
-		RAW("raw"), QCOW2("qcow2");
+		RAW("raw"), QCOW2("qcow2"), SHEEPDOG("sheepdog");
 		String format;
 
 		private PhysicalDiskFormat(String format) {

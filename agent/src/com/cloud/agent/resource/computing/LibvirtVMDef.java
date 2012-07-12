@@ -334,7 +334,7 @@ public class LibvirtVMDef {
 		}
 
 		enum diskType {
-			FILE("file"), BLOCK("block"), DIRECTROY("dir");
+			FILE("file"), BLOCK("block"), DIRECTROY("dir"), NETWORK("network");
 			String _diskType;
 
 			diskType(String type) {
@@ -363,7 +363,7 @@ public class LibvirtVMDef {
 		}
 
 		enum diskFmtType {
-			RAW("raw"), QCOW2("qcow2");
+			RAW("raw"), QCOW2("qcow2"), SHEEPDOG("sheepdog");
 			String _fmtType;
 
 			diskFmtType(String fmt) {
@@ -399,6 +399,16 @@ public class LibvirtVMDef {
 			_diskFmtType = diskFmtType;
 			_bus = bus;
 
+		}
+
+		public void defSheepdogBasedDisk(String vdi_name, int devId,
+				diskBus bus) {
+			_diskType = diskType.NETWORK;
+			_deviceType = deviceType.DISK;
+			_sourcePath = vdi_name;
+			_diskLabel = getDevLabel(devId, bus);
+			_diskFmtType = diskFmtType.SHEEPDOG;
+			_bus = bus;
 		}
 
 		/* skip iso label */
@@ -507,8 +517,10 @@ public class LibvirtVMDef {
 			}
 			diskBuilder.append(" type='" + _diskType + "'");
 			diskBuilder.append(">\n");
-			diskBuilder.append("<driver name='qemu'" + " type='" + _diskFmtType
-					+ "' cache='none' " + "/>\n");
+			if (_diskFmtType != diskFmtType.SHEEPDOG) {
+				diskBuilder.append("<driver name='qemu'" + " type='" + _diskFmtType
+						+ "' cache='none' " + "/>\n");
+			}
 			if (_diskType == diskType.FILE) {
 				diskBuilder.append("<source ");
 				if (_sourcePath != null) {
@@ -523,6 +535,12 @@ public class LibvirtVMDef {
 					diskBuilder.append(" dev='" + _sourcePath + "'");
 				}
 				diskBuilder.append("/>\n");
+			} else if (_diskType == diskType.NETWORK) {
+				if (_diskFmtType == diskFmtType.SHEEPDOG) {
+					diskBuilder.append("<source protocol='sheepdog' name='" + _sourcePath + "'>");
+					diskBuilder.append("<host name='localhost' port='7000'/>");
+					diskBuilder.append("</source>");
+				}
 			}
 			diskBuilder.append("<target dev='" + _diskLabel + "'");
 			if (_bus != null) {

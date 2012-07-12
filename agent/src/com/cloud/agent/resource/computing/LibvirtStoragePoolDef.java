@@ -14,7 +14,7 @@ package com.cloud.agent.resource.computing;
 
 public class LibvirtStoragePoolDef {
 	public enum poolType {
-		ISCSI("iscsi"), NETFS("netfs"), LOGICAL("logical"), DIR("dir");
+		ISCSI("iscsi"), NETFS("netfs"), LOGICAL("logical"), DIR("dir"), SHEEPDOG("sheepdog");
 		String _poolType;
 
 		poolType(String poolType) {
@@ -76,10 +76,17 @@ public class LibvirtStoragePoolDef {
 			storagePoolBuilder.append("<host name='" + _sourceHost + "'/>\n");
 			storagePoolBuilder.append("<dir path='" + _sourceDir + "'/>\n");
 			storagePoolBuilder.append("</source>\n");
+		} else if (_poolType == poolType.SHEEPDOG) {
+			storagePoolBuilder.append("<source>\n");
+			storagePoolBuilder.append("<host name='localhost' port='7000'/>\n");
+			storagePoolBuilder.append("<name>" + _poolName + "</name>\n"); /* ? */
+			storagePoolBuilder.append("</source>\n");
 		}
-		storagePoolBuilder.append("<target>\n");
-		storagePoolBuilder.append("<path>" + _targetPath + "</path>\n");
-		storagePoolBuilder.append("</target>\n");
+		if (_poolType != poolType.SHEEPDOG) {
+			storagePoolBuilder.append("<target>\n");
+			storagePoolBuilder.append("<path>" + _targetPath + "</path>\n");
+			storagePoolBuilder.append("</target>\n");
+		}
 		storagePoolBuilder.append("</pool>\n");
 		return storagePoolBuilder.toString();
 	}

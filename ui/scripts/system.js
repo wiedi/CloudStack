@@ -7492,6 +7492,7 @@
                         var items = [];
                         items.push({id: "nfs", description: "nfs"});
                         items.push({id: "SharedMountPoint", description: "SharedMountPoint"});
+                        items.push({id: "Sheepdog", description: "Sheepdog"});
                         args.response.success({data: items});
                       }
                       else if(selectedClusterObj.hypervisortype == "XenServer") {
@@ -7671,6 +7672,15 @@
                           $form.find('.form-item[rel=vCenterDataCenter]').hide();
                           $form.find('.form-item[rel=vCenterDataStore]').hide();
                         }
+                        else if(protocol == "Sheepdog") {
+                          $form.find('.form-item[rel=server]').hide();
+                          $form.find('.form-item[rel=path]').hide();
+                          $form.find('.form-item[rel=iqn]').hide();
+                          $form.find('.form-item[rel=lun]').hide();
+                          $form.find('.form-item[rel=volumegroup]').hide();
+                          $form.find('.form-item[rel=vCenterDataCenter]').hide();
+                          $form.find('.form-item[rel=vCenterDataStore]').hide();
+                        }
                         else {
                           //$dialogAddPool.find("#add_pool_server_container").show();
                           $form.find('.form-item[rel=server]').css('display', 'inline-block');
@@ -7805,6 +7815,9 @@
                     path = "/" + path;
                   path += "/" + args.data.vCenterDataStore;
                   url = vmfsURL("dummy", path);
+                }
+                else if (args.data.protocol == "Sheepdog") {
+                  url = sheepdogURL("localhost");
                 }
                 else {
                   //var iqn = trim($thisDialog.find("#add_pool_iqn").val());
