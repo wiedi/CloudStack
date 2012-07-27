@@ -1281,6 +1281,12 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 
 			KVMStoragePool primaryPool = _storagePoolMgr.getStoragePool(cmd
 					.getPool().getUuid());
+
+			if (primaryPool.getType() == StoragePoolType.Sheepdog) {
+				s_logger.debug("Snapshots are not supported on Sheepdog volumes");
+				return new ManageSnapshotAnswer(cmd, false,
+						"Snapshots are not yet supported on Sheepdog volumes");
+			}
 			KVMPhysicalDisk disk = primaryPool.getPhysicalDisk(cmd
 					.getVolumePath());
 			if (state == DomainInfo.DomainState.VIR_DOMAIN_RUNNING
