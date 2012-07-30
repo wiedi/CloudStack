@@ -26,12 +26,15 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.text.DateFormat;
 import java.text.MessageFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1633,17 +1636,41 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 					+ templateInstallFolder;
 			_storage.mkdirs(tmpltPath);
 
-			Script command = new Script(_createTmplPath, _cmdsTimeout, s_logger);
-			command.add("-f", disk.getPath());
-			command.add("-t", tmpltPath);
-			command.add("-n", cmd.getUniqueName() + ".qcow2");
 
-			String result = command.execute();
+			if (primary.getType() == StoragePoolType.Sheepdog) {
+				s_logger.debug("Converting Sheepdog VDI " + disk.getPath() + " into template " + cmd.getUniqueName());
+				Script.runSimpleBashScript("qemu-img convert"
+						+ " -f raw -O qcow2 sheepdog:" + disk.getPath()
+						+ " " + tmpltPath + "/" + cmd.getUniqueName() + ".qcow2");
+				File templateProp = new File(tmpltPath + "/template.properties");
+				if (!templateProp.exists()) {
+					templateProp.createNewFile();
+				}
 
-			if (result != null) {
-				s_logger.debug("failed to create template: " + result);
-				return new CreatePrivateTemplateAnswer(cmd, false, result);
+				String templateContent = "filename=" + cmd.getUniqueName() + ".qcow2" + System.getProperty("line.separator");
+
+				DateFormat dateFormat = new SimpleDateFormat("MM_dd_yyyy");
+				Date date = new Date();
+				templateContent += "snapshot.name=" + dateFormat.format(date) + System.getProperty("line.separator");
+
+				FileOutputStream templFo = new FileOutputStream(templateProp);
+				templFo.write(templateContent.getBytes());
+				templFo.flush();
+				templFo.close();
+			} else {
+				Script command = new Script(_createTmplPath, _cmdsTimeout, s_logger);
+				command.add("-f", disk.getPath());
+				command.add("-t", tmpltPath);
+				command.add("-n", cmd.getUniqueName() + ".qcow2");
+
+				String result = command.execute();
+
+				if (result != null) {
+					s_logger.debug("failed to create template: " + result);
+					return new CreatePrivateTemplateAnswer(cmd, false, result);
+				}
 			}
+
 
 			Map<String, Object> params = new HashMap<String, Object>();
 			params.put(StorageLayer.InstanceConfigKey, _storage);
