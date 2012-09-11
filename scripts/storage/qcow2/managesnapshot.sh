@@ -105,24 +105,19 @@ backup_snapshot() {
      fi
   fi
 
-  if [ -f ${disk} ]; then
-    # Does the snapshot exist? 
-    $qemu_img snapshot -l $disk|grep -w "$snapshotname" >& /dev/null
-    if [ $? -gt 0 ]
-    then
-      printf "there is no $snapshotname on disk $disk" >&2
-      return 1
-    fi
+  # Does the snapshot exist?
+  $qemu_img snapshot -l $disk|grep -w "$snapshotname" >& /dev/null
+  if [ $? -gt 0 ]
+  then
+    printf "there is no $snapshotname on disk $disk" >&2
+    return 1
+  fi
 
-    $qemu_img convert -f qcow2 -O qcow2 -s $snapshotname $disk $destPath/$destName >& /dev/null
-    if [ $? -gt 0 ]
-    then
-      printf "Failed to backup $snapshotname for disk $disk to $destPath" >&2
-      return 2
-    fi
-  else
-    printf "***Failed to backup snapshot $snapshotname, undefined type $disk\n" >&2
-    return 3
+  $qemu_img convert -O qcow2 -s $snapshotname $disk $destPath/$destName >& /dev/null
+  if [ $? -gt 0 ]
+  then
+    printf "Failed to backup $snapshotname for disk $disk to $destPath" >&2
+    return 2
   fi
   return 0
 }

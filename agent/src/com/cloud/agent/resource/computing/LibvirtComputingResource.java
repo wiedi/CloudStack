@@ -1381,7 +1381,11 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 					.getVolumePath());
 			Script command = new Script(_manageSnapshotPath, _cmdsTimeout,
 					s_logger);
-			command.add("-b", snapshotDisk.getPath());
+			if (primaryPool.getType() == StoragePoolType.Sheepdog) {
+				command.add("-b", "sheepdog:" + snapshotDisk.getPath());
+			} else {
+				command.add("-b", snapshotDisk.getPath());
+			}
 			command.add("-n", snapshotName);
 			command.add("-p", snapshotDestPath);
 			command.add("-t", snapshotName);
