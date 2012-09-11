@@ -1320,7 +1320,6 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 
 				if (primaryPool.getType() == StoragePoolType.Sheepdog) {
 					snapshotPath = "sheepdog:" + snapshotPath;
-					snapshotName = "sheepdog:" + snapshotName;
 				}
 
 				final Script command = new Script(_manageSnapshotPath,
