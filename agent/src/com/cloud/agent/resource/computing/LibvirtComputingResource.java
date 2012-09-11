@@ -1285,11 +1285,6 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 			KVMStoragePool primaryPool = _storagePoolMgr.getStoragePool(cmd
 					.getPool().getUuid());
 
-			if (primaryPool.getType() == StoragePoolType.Sheepdog) {
-				s_logger.debug("Snapshots are not supported on Sheepdog volumes");
-				return new ManageSnapshotAnswer(cmd, false,
-						"Snapshots are not yet supported on Sheepdog volumes");
-			}
 			KVMPhysicalDisk disk = primaryPool.getPhysicalDisk(cmd
 					.getVolumePath());
 			if (state == DomainInfo.DomainState.VIR_DOMAIN_RUNNING
@@ -1316,13 +1311,23 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 					vm.resume();
 				}
 			} else {
-
 				/* VM is not running, create a snapshot by ourself */
+
+				if (cmd.getCommandSwitch().equalsIgnoreCase(
+						ManageSnapshotCommand.CREATE_SNAPSHOT)) {
+					snapshotPath = disk.getPath();
+				}
+
+				if (primaryPool.getType() == StoragePoolType.Sheepdog) {
+					snapshotPath = "sheepdog:" + snapshotPath;
+					snapshotName = "sheepdog:" + snapshotName;
+				}
+
 				final Script command = new Script(_manageSnapshotPath,
 						_cmdsTimeout, s_logger);
 				if (cmd.getCommandSwitch().equalsIgnoreCase(
 						ManageSnapshotCommand.CREATE_SNAPSHOT)) {
-					command.add("-c", disk.getPath());
+					command.add("-c", snapshotPath);
 				} else {
 					command.add("-d", snapshotPath);
 				}

@@ -43,25 +43,19 @@ create_snapshot() {
   local snapshotname="$2"
   local failed=0
 
-  if [ -f "${disk}" ]; then
-     $qemu_img snapshot -c "$snapshotname" $disk
-
+  $qemu_img snapshot -c "$snapshotname" $disk
   
-     if [ $? -gt 0 ]
-     then
-       failed=2
-       printf "***Failed to create snapshot $snapshotname for path $disk\n" >&2
-       $qemu_img snapshot -d "$snapshotname" $disk
-    
-       if [ $? -gt 0 ]
-       then
-          printf "***Failed to delete snapshot $snapshotname for path $disk\n" >&2
-       fi
-     fi
- else
-    failed=3
-    printf "***Failed to create snapshot $snapshotname, undefined type $disk\n" >&2
- fi
+  if [ $? -gt 0 ]
+  then
+    failed=2
+    printf "***Failed to create snapshot $snapshotname for path $disk\n" >&2
+    $qemu_img snapshot -d "$snapshotname" $disk
+
+    if [ $? -gt 0 ]
+    then
+      printf "***Failed to delete snapshot $snapshotname for path $disk\n" >&2
+    fi
+  fi
 
   return $failed 
 }
@@ -71,16 +65,11 @@ destroy_snapshot() {
   local snapshotname=$2
   local failed=0
 
-  if [ -f $disk ]; then
-     $qemu_img snapshot -d "$snapshotname" $disk
-     if [ $? -gt 0 ]
-     then
-       failed=2
-       printf "Failed to delete snapshot $snapshotname for path $disk\n" >&2
-     fi	
-  else
-     failed=3
-     printf "***Failed to delete snapshot $snapshotname, undefined type $disk\n" >&2
+  $qemu_img snapshot -d "$snapshotname" $disk
+  if [ $? -gt 0 ]
+  then
+    failed=2
+    printf "Failed to delete snapshot $snapshotname for path $disk\n" >&2
   fi
   return $failed 
 }
