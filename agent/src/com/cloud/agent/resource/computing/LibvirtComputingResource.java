@@ -1429,7 +1429,11 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 			} else {
 				command = new Script(_manageSnapshotPath, _cmdsTimeout,
 						s_logger);
-				command.add("-d", snapshotDisk.getPath());
+				if (primaryPool.getType() == StoragePoolType.Sheepdog) {
+					command.add("-d", "sheepdog:" + snapshotDisk.getPath());
+				} else {
+					command.add("-d", snapshotDisk.getPath());
+				}
 				command.add("-n", snapshotName);
 				result = command.execute();
 				if (result != null) {

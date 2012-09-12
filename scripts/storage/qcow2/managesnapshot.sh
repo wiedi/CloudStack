@@ -115,7 +115,8 @@ backup_snapshot() {
 
   case ${disk} in
     sheepdog:*)
-      collie vdi clone -s $snapshotname $disk $snapshotname >& /dev/null
+      vdi=$(echo $disk | sed 's-sheepdog:--g')
+      collie vdi clone -s $snapshotname $vdi $snapshotname >& /dev/null
       $qemu_img convert -O qcow2 sheepdog:$snapshotname $destPath/$destName >& /dev/null
       collie vdi delete $snapshotname >& /dev/null
       ;;
