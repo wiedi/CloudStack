@@ -113,7 +113,17 @@ backup_snapshot() {
     return 1
   fi
 
-  $qemu_img convert -O qcow2 -s $snapshotname $disk $destPath/$destName >& /dev/null
+  case ${disk} in
+    sheepdog:*)
+      collie vdi clone -s $snapshotname $disk $snapshotname >& /dev/null
+      $qemu_img convert -O qcow2 sheepdog:$snapshotname $destPath/$destName >& /dev/null
+      collie vdi delete $snapshotname >& /dev/null
+      ;;
+    *)
+      $qemu_img convert -O qcow2 -s $snapshotname $disk $destPath/$destName >& /dev/null
+      ;;
+  esac
+
   if [ $? -gt 0 ]
   then
     printf "Failed to backup $snapshotname for disk $disk to $destPath" >&2
