@@ -115,10 +115,14 @@ backup_snapshot() {
 
   case ${disk} in
     sheepdog:*)
+      # This is a workaround for qemu-img, which can't convert from sheepdog snapshots directly
       vdi=$(echo $disk | sed 's-sheepdog:--g')
       collie vdi clone -s $snapshotname $vdi $snapshotname >& /dev/null
+      if [ $? -gt 0 ]; then; echo "Failed to clone $snapshotname of $vdi"; return 1; fi
       $qemu_img convert -O qcow2 sheepdog:$snapshotname $destPath/$destName >& /dev/null
+      if [ $? -gt 0 ]; then; echo "Failed to convert $snapshotname of $vdi"; return 1; fi
       collie vdi delete $snapshotname >& /dev/null
+      if [ $? -gt 0 ]; then; echo "Failed delete clone $snapshotname of $vdi"; return 1; fi
       ;;
     *)
       $qemu_img convert -O qcow2 -s $snapshotname $disk $destPath/$destName >& /dev/null
