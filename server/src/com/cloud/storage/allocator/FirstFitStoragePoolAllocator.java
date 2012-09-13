@@ -27,19 +27,26 @@ import org.apache.log4j.Logger;
 import com.cloud.deploy.DeploymentPlan;
 import com.cloud.deploy.DeploymentPlanner.ExcludeList;
 import com.cloud.server.StatsCollector;
+import com.cloud.storage.DiskOfferingVO;
+import com.cloud.storage.dao.DiskOfferingDao;
 import com.cloud.storage.StoragePool;
 import com.cloud.storage.StoragePoolVO;
 import com.cloud.storage.VMTemplateVO;
+import com.cloud.storage.Storage.StoragePoolType;
 import com.cloud.user.Account;
 import com.cloud.vm.DiskProfile;
 import com.cloud.vm.VirtualMachine;
 import com.cloud.vm.VirtualMachineProfile;
+import com.cloud.utils.component.Inject;
 
 @Local(value=StoragePoolAllocator.class)
 public class FirstFitStoragePoolAllocator extends AbstractStoragePoolAllocator {
     private static final Logger s_logger = Logger.getLogger(FirstFitStoragePoolAllocator.class);
     protected String _allocationAlgorithm = "random";
     
+    @Inject
+    DiskOfferingDao _diskOfferingDao;
+
     @Override
     public boolean allocatorIsCorrectType(DiskProfile dskCh) {
     	return !localStorageAllocationNeeded(dskCh);
@@ -93,13 +100,38 @@ public class FirstFitStoragePoolAllocator extends AbstractStoragePoolAllocator {
             s_logger.debug("FirstFitStoragePoolAllocator has " + pools.size() + " pools to check for allocation");
         }
     	
+        DiskOfferingVO diskOffering = _diskOfferingDao.findById(dskCh.getDiskOfferingId());
+        /* if we have a working sheepdog pool, prefer it to all other pools. */
+        boolean hasSheepdog = false;
         for (StoragePoolVO pool: pools) {
-        	if(suitablePools.size() == returnUpTo){
-        		break;
-        	}
-        	if (checkPool(avoid, pool, dskCh, template, null, sc, plan)) {
-        		suitablePools.add(pool);
-        	}
+            if (suitablePools.size() == returnUpTo) {
+                break;
+            }
+            if (checkPool(avoid, pool, dskCh, template, null, sc, plan)) {
+                if(pool.getPoolType() == StoragePoolType.Sheepdog) {
+                    hasSheepdog = true;
+                    break;
+                }
+            }
+        }
+
+        for (StoragePoolVO pool: pools) {
+            if(suitablePools.size() == returnUpTo){
+                break;
+            }
+
+            if (diskOffering.getSystemUse() && pool.getPoolType() == StoragePoolType.Sheepdog) {
+                s_logger.debug("Skipping Sheepdog pool " + pool.getName() + " as a suitable pool. Sheepdog is not supported for System VM's");
+                continue;
+            }
+
+            if (hasSheepdog == true && !diskOffering.getSystemUse() && pool.getPoolType() == StoragePoolType.Sheepdog) {
+                continue;
+            }
+
+            if (checkPool(avoid, pool, dskCh, template, null, sc, plan)) {
+                suitablePools.add(pool);
+            }
         }
         
         if (s_logger.isDebugEnabled()) {

@@ -2701,51 +2701,31 @@ public class LibvirtComputingResource extends ServerResourceBase implements
 		VolumeTO rootVol = getVolume(vmSpec, Volume.Type.ROOT);
 		KVMStoragePool pool = _storagePoolMgr.getStoragePool(rootVol
 				.getPoolUuid());
-		KVMStoragePool tmp_pool = pool;
-		if(pool.getType() == StoragePoolType.Sheepdog) {
-			/* make tmp dir configurable? */
-			tmp_pool = _storagePoolMgr.getStoragePoolByURI("local:///tmp");
-		}
-		KVMPhysicalDisk disk = tmp_pool.createPhysicalDisk(UUID.randomUUID()
+		KVMPhysicalDisk disk = pool.createPhysicalDisk(UUID.randomUUID()
 				.toString(), KVMPhysicalDisk.PhysicalDiskFormat.RAW,
 				10L * 1024 * 1024);
-		String datadiskPath = disk.getPath();
-
 		/* Format/create fs on this disk */
 		final Script command = new Script(_createvmPath, _timeout, s_logger);
-		command.add("-f", datadiskPath);
+		command.add("-f", disk.getPath());
 		String result = command.execute();
 		if (result != null) {
 			s_logger.debug("Failed to create data disk: " + result);
 			throw new InternalErrorException("Failed to create data disk: "
 					+ result);
 		}
+		String datadiskPath = disk.getPath();
 
 		/* add patch disk */
 		DiskDef patchDisk = new DiskDef();
 
-		if(pool.getType() == StoragePoolType.Sheepdog) {
-			pool.createPhysicalDisk(disk.getName(),
-					KVMPhysicalDisk.PhysicalDiskFormat.SHEEPDOG,
-					10L * 1024 * 1024);
-			patchDisk.defSheepdogBasedDisk(disk.getName(), 1, rootDisk.getBusType());
-		} else {
-			patchDisk.defFileBasedDisk(datadiskPath, 1, rootDisk.getBusType(),
-					DiskDef.diskFmtType.RAW);
-		}
-
+		patchDisk.defFileBasedDisk(datadiskPath, 1, rootDisk.getBusType(),
+				DiskDef.diskFmtType.RAW);
+		
 		disks.add(patchDisk);
 
 		String bootArgs = vmSpec.getBootArgs();
 
 		patchSystemVm(bootArgs, datadiskPath, vmName);
-		if(pool.getType() == StoragePoolType.Sheepdog) {
-			/* convert */
-			Script.runSimpleBashScript("collie vdi delete " + disk.getName()
-					+ " ; qemu-img convert -f raw " + disk.getPath()
-					+ " sheepdog:" + disk.getName()
-					+ " ; rm " + disk.getPath());
-		}
 	}
 
 	private String createVlanBr(String vlanId, String nic)
