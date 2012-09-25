@@ -125,7 +125,7 @@ public class FirstFitStoragePoolAllocator extends AbstractStoragePoolAllocator {
                 continue;
             }
 
-            if (hasSheepdog == true && !diskOffering.getSystemUse() && pool.getPoolType() == StoragePoolType.Sheepdog) {
+            if (hasSheepdog == true && !diskOffering.getSystemUse() && pool.getPoolType() != StoragePoolType.Sheepdog) {
                 continue;
             }
 
